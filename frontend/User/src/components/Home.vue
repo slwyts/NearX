@@ -170,7 +170,7 @@
   <script>
   import Web3 from 'web3';
   
-  const CONTRACT_ADDRESS = '0x3a11b0d9f94ece55d96d37e50c28d41e64ff8a61';
+  const CONTRACT_ADDRESS = '0x77e480689AD623dcf02Ec328cAbe521c703A3B88';
   const USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955';
   
   // 省略 CONTRACT_ABI
@@ -279,16 +279,6 @@
 	},
 	{
 		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_usdtToken",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_feeReceiver",
-				"type": "address"
-			},
 			{
 				"internalType": "address",
 				"name": "initialOwner",
@@ -597,13 +587,7 @@
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "netAmount",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "fee",
+				"name": "amount",
 				"type": "uint256"
 			}
 		],
@@ -631,19 +615,6 @@
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "feeReceiver",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -1183,19 +1154,6 @@
 	},
 	{
 		"inputs": [],
-		"name": "privilegedAddress",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "RATE_PRECISION",
 		"outputs": [
 			{
@@ -1382,19 +1340,6 @@
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "WITHDRAW_FEE",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
 		"inputs": [
 			{
 				"internalType": "address",
@@ -1414,51 +1359,6 @@
 		"type": "function"
 	}
 ];
-  
-  const USDT_ABI = [
-	{
-	  "constant": true,
-	  "inputs": [],
-	  "name": "decimals",
-	  "outputs": [{"name": "", "type": "uint8"}],
-	  "payable": false,
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "constant": true,
-	  "inputs": [{"name": "owner", "type": "address"}],
-	  "name": "balanceOf",
-	  "outputs": [{"name": "", "type": "uint256"}],
-	  "payable": false,
-	  "stateMutability": "view",
-	  "type": "function"
-	},
-	{
-	  "constant": false,
-	  "inputs": [
-		{"name": "spender", "type": "address"},
-		{"name": "value", "type": "uint256"}
-	  ],
-	  "name": "approve",
-	  "outputs": [{"name": "", "type": "bool"}],
-	  "payable": false,
-	  "stateMutability": "nonpayable",
-	  "type": "function"
-	},
-	{
-	  "constant": true,
-	  "inputs": [
-		{"name": "owner", "type": "address"},
-		{"name": "spender", "type": "address"}
-	  ],
-	  "name": "allowance",
-	  "outputs": [{"name": "", "type": "uint256"}],
-	  "payable": false,
-	  "stateMutability": "view",
-	  "type": "function"
-	}
-  ];
   
   export default {
 	name: 'HomePage',

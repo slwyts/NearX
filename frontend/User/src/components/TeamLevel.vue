@@ -81,7 +81,7 @@
   <script>
   import Web3 from 'web3';
   
-  const CONTRACT_ADDRESS = '0x3a11b0d9f94ece55d96d37e50c28d41e64ff8a61';
+  const CONTRACT_ADDRESS = '0x77e480689AD623dcf02Ec328cAbe521c703A3B88';
   const CONTRACT_ABI = [
 	{
 		"inputs": [
@@ -187,16 +187,6 @@
 	},
 	{
 		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_usdtToken",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_feeReceiver",
-				"type": "address"
-			},
 			{
 				"internalType": "address",
 				"name": "initialOwner",
@@ -505,13 +495,7 @@
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "netAmount",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "fee",
+				"name": "amount",
 				"type": "uint256"
 			}
 		],
@@ -539,19 +523,6 @@
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "feeReceiver",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -1091,19 +1062,6 @@
 	},
 	{
 		"inputs": [],
-		"name": "privilegedAddress",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "RATE_PRECISION",
 		"outputs": [
 			{
@@ -1283,19 +1241,6 @@
 			{
 				"internalType": "uint256",
 				"name": "lastWithdrawTime",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "WITHDRAW_FEE",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
 				"type": "uint256"
 			}
 		],
