@@ -32,13 +32,13 @@
     <!-- 公告部分 -->
     <section class="announcement-section">
       <h2 class="title">{{ isChinese ? '公告' : 'Announcement' }}</h2>
-      <div class="content-box">
+      <!-- <div class="content-box">
         <p class="intro-text">
           {{ isChinese ? 
             '会员个人投入不低于3000u，小区业绩达到15000u，注册地址达到50个，即可向社区申请每月450u的办公室补贴（持续12个月），限前200名。此活动于4月30日前提交申请有效。' : 
             'Members with a personal investment of no less than 3,000u, a community performance of 15,000u, and 50 registered addresses can apply to the community for a monthly office subsidy of 450u (for 12 months), limited to the first 200 applicants. Applications must be submitted by April 30.' }}
         </p>
-      </div>
+      </div> -->
     </section>
   </div>
 </template>
