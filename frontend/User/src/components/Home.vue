@@ -138,7 +138,7 @@
 		>
 		  {{ hasWithdrawnRecently ? (language === 'zh' ? '24小时内已提现' : 'Withdrawn within 24h') : 
 			 withdrawable === '0.00' ? (language === 'zh' ? '无奖励可提取' : 'No Rewards') :
-			 (plevel === 'zh' ? '提取今日奖励' : 'Withdraw Rewards') }}
+			 (language === 'zh' ? '提取今日奖励' : 'Withdraw Rewards') }}
 		</button>
 		<div class="note">
 		  <span style="color: green;">❗</span>
