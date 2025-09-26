@@ -81,7 +81,7 @@
   <script>
   import Web3 from 'web3';
   
-  const CONTRACT_ADDRESS = '0x77e480689AD623dcf02Ec328cAbe521c703A3B88';
+  const CONTRACT_ADDRESS = '0xA37A284A9551c5466745c40f5866337059A76619';
   const CONTRACT_ABI = [
 	{
 		"inputs": [

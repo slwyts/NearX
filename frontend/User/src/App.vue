@@ -18,7 +18,6 @@ import EconomicModel from './components/EconomicModel.vue';
 import CommunityPoster from './components/CommunityPoster.vue';
 import Announcements from './components/Announcements.vue';
 import ContactUs from './components/ContactUs.vue';
-import AdminPanel from './components/AdminPanel.vue';
 
 export default {
   components: {
@@ -32,7 +31,6 @@ export default {
     CommunityPoster,
     Announcements,
     ContactUs,
-    AdminPanel
   },
   data() {
     return {

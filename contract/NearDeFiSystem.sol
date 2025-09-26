@@ -64,7 +64,7 @@ contract NearDeFiSystem is Ownable {
         users[initialOwner].rootReferrer = initialOwner;
         usdtToNearRate = 25; // 设置初始汇率为 2.5 (25 / 10)
     }
-    // 0x77e480689AD623dcf02Ec328cAbe521c703A3B88 BSC
+    // 0xA37A284A9551c5466745c40f5866337059A76619 BSC
     function getLevel(address user) public view returns (uint256) {
         address root = _findRootReferrer(user);
         return root == address(0) ? 0 : users[root].level;

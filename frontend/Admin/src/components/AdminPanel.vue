@@ -37,17 +37,41 @@
           {{ language === 'zh' ? '欢迎，管理员:' : 'Welcome, Admin:' }}
           {{ formatAddress(account) }}
         </p>
-        <p class="info-text">
-          {{ language === 'zh' ? '合约中总质押 USDT:' : 'Total Deposited USDT:' }}
-          {{ totalDeposited }} USDT
-        </p>
-        <p class="info-text">
-          {{ language === 'zh' ? '合约余额:' : 'Contract Balance:' }}
-          {{ contractBalance }} USDT
-        </p>
+        
+        <div class="data-grid">
+            <p class="info-text">
+              {{ language === 'zh' ? '总质押 USDT:' : 'Total Deposited USDT:' }}
+              <strong>{{ totalDeposited }} USDT</strong>
+            </p>
+            <p class="info-text">
+              {{ language === 'zh' ? '合约余额:' : 'Contract Balance:' }}
+              <strong>{{ contractBalance }} USDT</strong>
+            </p>
+        </div>
+
         <button class="action-btn" @click="withdrawAllUSDT">
           {{ language === 'zh' ? '提取所有 USDT' : 'Withdraw All USDT' }}
         </button>
+        
+        <hr class="divider">
+
+        <div class="rate-section">
+            <p class="info-text">
+              {{ language === 'zh' ? '当前NEAR汇率 (1 NEAR = ? USDT):' : 'Current NEAR Rate (1 NEAR = ? USDT):' }}
+              <strong>{{ currentRate }} USDT</strong>
+            </p>
+            <div class="input-group">
+                <input
+                  type="number"
+                  v-model="newRateInput"
+                  :placeholder="language === 'zh' ? '输入新的USDT汇率，如 2.5' : 'Enter new USDT rate, e.g., 2.5'"
+                  class="rate-input"
+                />
+                <button class="action-btn" @click="updateExchangeRate">
+                  {{ language === 'zh' ? '更新汇率' : 'Update Rate' }}
+                </button>
+            </div>
+        </div>
       </div>
 
       <div v-else class="content-box">
@@ -97,7 +121,9 @@ export default {
       totalDeposited: '0',
       contractBalance: '0',
       ownerAddress: null,
-      contractAddress: '0x77e480689AD623dcf02Ec328cAbe521c703A3B88', 
+      currentRate: '加载中...', // 新增：当前汇率
+      newRateInput: '', // 新增：新汇率输入
+      contractAddress: '0xA37A284A9551c5466745c40f5866337059A76619', 
       usdtAddress: '0x55d398326f99059fF775485246999027B3197955',
       language: 'zh',
       web3: null,
@@ -105,7 +131,7 @@ export default {
       usdtContract: null,
       showDisconnectModal: false,
       contractABI: [
-        // [修改] 使用 owner() 函数的ABI
+        // 保留原有的ABI
         {
           "constant": true,
           "inputs": [],
@@ -114,7 +140,6 @@ export default {
           "stateMutability": "view",
           "type": "function"
         },
-        // 保留其他ABI
         {
           "constant": true,
           "inputs": [],
@@ -130,6 +155,24 @@ export default {
           "outputs": [],
           "stateMutability": "nonpayable",
           "type": "function"
+        },
+        // [新增] 获取汇率的ABI
+        {
+          "constant": true,
+          "inputs": [],
+          "name": "usdtToNearRate",
+          "outputs": [{ "name": "", "type": "uint256" }],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        // [新增] 设置汇率的ABI
+        {
+            "constant": false,
+            "inputs": [{ "name": "_newRate", "type": "uint256" }],
+            "name": "setUsdtToNearRate",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
         }
       ],
       usdtABI: [
@@ -146,7 +189,6 @@ export default {
   },
   async mounted() {
     await this.initializeWeb3();
-    // [修改] 调用新的函数名
     await this.fetchOwnerAddress();
     await this.checkWalletConnection();
   },
@@ -158,11 +200,9 @@ export default {
         this.usdtContract = new this.web3.eth.Contract(this.usdtABI, this.usdtAddress);
       }
     },
-    // [修改] 重命名函数并更新内部调用
     async fetchOwnerAddress() {
       if (this.contract) {
         try {
-          // 调用新的 owner() 方法
           this.ownerAddress = await this.contract.methods.owner().call();
         } catch (error) {
           console.error('获取管理员地址失败:', error);
@@ -197,10 +237,8 @@ export default {
     },
     async checkAdminStatus() {
       if (!this.ownerAddress) {
-        // [修改] 确保调用的是新函数
         await this.fetchOwnerAddress();
       }
-      // [修改] 使用新的 ownerAddress 变量进行比较
       this.isAdmin = this.account && this.ownerAddress &&
         (this.account.toLowerCase() === this.ownerAddress.toLowerCase());
       if (this.isAdmin) {
@@ -209,11 +247,18 @@ export default {
     },
     async fetchContractData() {
       try {
+        // 获取总质押和合约余额
         const totalDeposited = await this.contract.methods.totalDeposited().call();
         this.totalDeposited = this.web3.utils.fromWei(totalDeposited.toString(), 'ether');
         
         const balance = await this.usdtContract.methods.balanceOf(this.contractAddress).call();
         this.contractBalance = this.web3.utils.fromWei(balance.toString(), 'ether');
+
+        // [新增] 获取当前汇率
+        const rateRaw = await this.contract.methods.usdtToNearRate().call();
+        // 精度是10，所以除以10
+        this.currentRate = (Number(rateRaw) / 10).toString();
+
       } catch (error) {
         console.error('获取合约数据失败:', error);
         alert(this.language === 'zh'
@@ -221,15 +266,33 @@ export default {
           : 'Failed to fetch contract data: ' + error.message);
       }
     },
+    // [新增] 更新汇率的方法
+    async updateExchangeRate() {
+      if (!this.newRateInput || isNaN(parseFloat(this.newRateInput)) || parseFloat(this.newRateInput) <= 0) {
+        alert(this.language === 'zh' ? '请输入一个有效的大于0的汇率' : 'Please enter a valid rate greater than 0');
+        return;
+      }
+      try {
+        // 乘以精度10，转换成合约需要的整数格式
+        const rateToSend = Math.round(parseFloat(this.newRateInput) * 10);
+
+        const tx = await this.contract.methods.setUsdtToNearRate(rateToSend).send({ from: this.account });
+        console.log('汇率更新成功:', tx);
+        alert(this.language === 'zh' ? '汇率更新成功！' : 'Rate updated successfully!');
+        
+        // 成功后清空输入框并刷新数据
+        this.newRateInput = '';
+        await this.fetchContractData();
+
+      } catch (error) {
+        console.error('汇率更新失败:', error);
+        alert(this.language === 'zh' ? '汇率更新失败: ' + error.message : 'Failed to update rate: ' + error.message);
+      }
+    },
     async withdrawAllUSDT() {
       try {
         const amount = this.web3.utils.toWei(this.contractBalance, 'ether');
-        const tx = await this.contract.methods.withdrawUSDT(amount).send({
-          from: this.account,
-          // Gas a little higher for safety, can be adjusted
-          gas: 300000, 
-        });
-        console.log('提取成功:', tx);
+        await this.contract.methods.withdrawUSDT(amount).send({ from: this.account });
         alert(this.language === 'zh' ? '提取成功' : 'Withdrawal successful');
         await this.fetchContractData();
       } catch (error) {
@@ -248,6 +311,7 @@ export default {
       this.isAdmin = false;
       this.totalDeposited = '0';
       this.contractBalance = '0';
+      this.currentRate = '加载中...';
       this.closeModal();
       console.log('钱包已断开');
     },
@@ -401,6 +465,16 @@ export default {
   font-size: 16px;
   color: #333;
 }
+.info-text strong {
+    color: #008c5e;
+}
+.data-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    width: 100%;
+    margin-bottom: 10px;
+}
 
 .error-text {
   font-size: 18px;
@@ -434,13 +508,35 @@ export default {
   box-shadow: 0 3px 10px rgba(0, 192, 139, 0.2);
 }
 
-.action-btn.secondary {
-  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-  box-shadow: 0 6px 15px rgba(231, 76, 60, 0.3);
+.divider {
+    width: 80%;
+    border: none;
+    border-top: 1px solid #e0e0e0;
+    margin: 25px 0;
 }
 
-.action-btn.secondary:hover {
-  background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+.rate-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+.rate-input {
+    width: 100%;
+    max-width: 250px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
 }
 
 /* 模态框样式 */
