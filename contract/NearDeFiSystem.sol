@@ -10,7 +10,7 @@ contract NearDeFiSystem is Ownable {
 
     IERC20 public usdtToken = IERC20(0x55d398326f99059fF775485246999027B3197955);
     IERC20 public nearToken = IERC20(0x1Fa4a73a3F0133f0025378af00236f3aBDEE5D63);
-    uint256 public constant USDT_TO_NEAR_RATE = 25;
+    uint256 public usdtToNearRate;
     uint256 public constant RATE_PRECISION = 10;
 
     struct User {
@@ -55,12 +55,14 @@ contract NearDeFiSystem is Ownable {
     event LevelUpgraded(address indexed user, uint256 newLevel);
     event WithdrawAttempt(address indexed user, uint256 staticReward, uint256 dynamicReward);
     event WithdrawBlacklistUpdated(address indexed user, bool isBlacklisted);
+    event UsdtToNearRateUpdated(uint256 oldRate, uint256 newRate);
 
     constructor(
         address initialOwner
     ) Ownable(initialOwner) {
         totalDeposited = 0;
         users[initialOwner].rootReferrer = initialOwner;
+        usdtToNearRate = 25; // 设置初始汇率为 2.5 (25 / 10)
     }
     // 0x77e480689AD623dcf02Ec328cAbe521c703A3B88 BSC
     function getLevel(address user) public view returns (uint256) {
@@ -211,14 +213,12 @@ contract NearDeFiSystem is Ownable {
         require(amount <= u.usdtBalance, "Insufficient usdtBalance");
         require(!withdrawBlacklist[msg.sender], "You have been blacklisted from withdrawing");
 
-        // 计算对应的NEAR数量 (2.5 USDT = 1 NEAR)
-        uint256 nearAmount = amount.mul(RATE_PRECISION).div(USDT_TO_NEAR_RATE);
+        uint256 nearAmount = amount.mul(RATE_PRECISION).div(usdtToNearRate);
         
         u.withdrawnAmount = u.withdrawnAmount.add(amount);
         u.usdtBalance = u.usdtBalance.sub(amount);
         u.lastWithdrawTime = block.timestamp;
 
-        // 直接转移NEAR代币给用户，无手续费
         require(nearToken.transfer(msg.sender, nearAmount), "NEAR transfer failed");
 
         emit WithdrawRequested(msg.sender, nearAmount);
@@ -228,6 +228,17 @@ contract NearDeFiSystem is Ownable {
     function setWithdrawBlacklist(address user, bool isBlacklisted) external onlyOwner {
         withdrawBlacklist[user] = isBlacklisted;
         emit WithdrawBlacklistUpdated(user, isBlacklisted);
+    }
+
+    /**
+    * @dev 设置USDT到NEAR的兑换率。
+    * @notice 只能由合约所有者调用。
+    * @param _newRate 新的汇率。该值应为实际汇率乘以精度(10)。例如，要设置2.8，应传入28。
+    */
+    function setUsdtToNearRate(uint256 _newRate) external onlyOwner {
+        require(_newRate > 0, "Rate must be greater than zero"); // 防止设置成0导致除法错误
+        emit UsdtToNearRateUpdated(usdtToNearRate, _newRate);
+        usdtToNearRate = _newRate;
     }
 
     function isBlacklisted(address user) external view returns (bool) {

@@ -96,9 +96,7 @@ export default {
       isAdmin: false,
       totalDeposited: '0',
       contractBalance: '0',
-      // [修改] 将 privilegedAddress 重命名为 ownerAddress
       ownerAddress: null,
-      // [注意] 请确保这是您部署的正确合约地址
       contractAddress: '0x77e480689AD623dcf02Ec328cAbe521c703A3B88', 
       usdtAddress: '0x55d398326f99059fF775485246999027B3197955',
       language: 'zh',
