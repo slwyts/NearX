@@ -37,22 +37,29 @@
           {{ language === 'zh' ? '欢迎，管理员:' : 'Welcome, Admin:' }}
           {{ formatAddress(account) }}
         </p>
-        
+
         <div class="data-grid">
             <p class="info-text">
               {{ language === 'zh' ? '总质押 USDT:' : 'Total Deposited USDT:' }}
               <strong>{{ totalDeposited }} USDT</strong>
             </p>
             <p class="info-text">
-              {{ language === 'zh' ? '合约余额:' : 'Contract Balance:' }}
+              {{ language === 'zh' ? '合约USDT余额:' : 'Contract USDT Balance:' }}
               <strong>{{ contractBalance }} USDT</strong>
+            </p>
+             <p class="info-text">
+              {{ language === 'zh' ? '合约NEAR余额:' : 'Contract NEAR Balance:' }}
+              <strong>{{ contractNearBalance }} NEAR</strong>
             </p>
         </div>
 
         <button class="action-btn" @click="withdrawAllUSDT">
           {{ language === 'zh' ? '提取所有 USDT' : 'Withdraw All USDT' }}
         </button>
-        
+         <button class="action-btn" @click="withdrawAllNEAR" style="margin-top: 10px;">
+          {{ language === 'zh' ? '提取所有 NEAR' : 'Withdraw All NEAR' }}
+        </button>
+
         <hr class="divider">
 
         <div class="rate-section">
@@ -120,10 +127,11 @@ export default {
       isAdmin: false,
       totalDeposited: '0',
       contractBalance: '0',
+      contractNearBalance: '0',
       ownerAddress: null,
-      currentRate: '加载中...', // 新增：当前汇率
-      newRateInput: '', // 新增：新汇率输入
-      contractAddress: '0xA37A284A9551c5466745c40f5866337059A76619', 
+      currentRate: '加载中...',
+      newRateInput: '',
+      contractAddress: '0xA37A284A9551c5466745c40f5866337059A76619',
       usdtAddress: '0x55d398326f99059fF775485246999027B3197955',
       language: 'zh',
       web3: null,
@@ -131,7 +139,6 @@ export default {
       usdtContract: null,
       showDisconnectModal: false,
       contractABI: [
-        // 保留原有的ABI
         {
           "constant": true,
           "inputs": [],
@@ -156,7 +163,6 @@ export default {
           "stateMutability": "nonpayable",
           "type": "function"
         },
-        // [新增] 获取汇率的ABI
         {
           "constant": true,
           "inputs": [],
@@ -165,7 +171,6 @@ export default {
           "stateMutability": "view",
           "type": "function"
         },
-        // [新增] 设置汇率的ABI
         {
             "constant": false,
             "inputs": [{ "name": "_newRate", "type": "uint256" }],
@@ -173,6 +178,22 @@ export default {
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
+        },
+        {
+          "constant": true,
+          "inputs": [],
+          "name": "getNearBalance",
+          "outputs": [{ "name": "", "type": "uint256" }],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "constant": false,
+          "inputs": [{ "name": "amount", "type": "uint256" }],
+          "name": "withdrawNear",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
         }
       ],
       usdtABI: [
@@ -250,7 +271,7 @@ export default {
         // 获取总质押和合约余额
         const totalDeposited = await this.contract.methods.totalDeposited().call();
         this.totalDeposited = this.web3.utils.fromWei(totalDeposited.toString(), 'ether');
-        
+
         const balance = await this.usdtContract.methods.balanceOf(this.contractAddress).call();
         this.contractBalance = this.web3.utils.fromWei(balance.toString(), 'ether');
 
@@ -259,6 +280,11 @@ export default {
         // 精度是10，所以除以10
         this.currentRate = (Number(rateRaw) / 10).toString();
 
+        // [新增] 获取NEAR余额
+        const nearBalance = await this.contract.methods.getNearBalance().call();
+        this.contractNearBalance = this.web3.utils.fromWei(nearBalance.toString(), 'ether');
+
+
       } catch (error) {
         console.error('获取合约数据失败:', error);
         alert(this.language === 'zh'
@@ -266,21 +292,17 @@ export default {
           : 'Failed to fetch contract data: ' + error.message);
       }
     },
-    // [新增] 更新汇率的方法
     async updateExchangeRate() {
       if (!this.newRateInput || isNaN(parseFloat(this.newRateInput)) || parseFloat(this.newRateInput) <= 0) {
         alert(this.language === 'zh' ? '请输入一个有效的大于0的汇率' : 'Please enter a valid rate greater than 0');
         return;
       }
       try {
-        // 乘以精度10，转换成合约需要的整数格式
         const rateToSend = Math.round(parseFloat(this.newRateInput) * 10);
 
         const tx = await this.contract.methods.setUsdtToNearRate(rateToSend).send({ from: this.account });
         console.log('汇率更新成功:', tx);
         alert(this.language === 'zh' ? '汇率更新成功！' : 'Rate updated successfully!');
-        
-        // 成功后清空输入框并刷新数据
         this.newRateInput = '';
         await this.fetchContractData();
 
@@ -300,6 +322,17 @@ export default {
         alert(this.language === 'zh' ? '提取失败: ' + error.message : 'Withdrawal failed: ' + error.message);
       }
     },
+    async withdrawAllNEAR() {
+      try {
+        const amount = this.web3.utils.toWei(this.contractNearBalance, 'ether');
+        await this.contract.methods.withdrawNear(amount).send({ from: this.account });
+        alert(this.language === 'zh' ? 'NEAR提取成功' : 'NEAR withdrawal successful');
+        await this.fetchContractData();
+      } catch (error) {
+        console.error('NEAR提取失败:', error);
+        alert(this.language === 'zh' ? 'NEAR提取失败: ' + error.message : 'NEAR withdrawal failed: ' + error.message);
+      }
+    },
     openDisconnectModal() {
       this.showDisconnectModal = true;
     },
@@ -311,6 +344,7 @@ export default {
       this.isAdmin = false;
       this.totalDeposited = '0';
       this.contractBalance = '0';
+      this.contractNearBalance = '0';
       this.currentRate = '加载中...';
       this.closeModal();
       console.log('钱包已断开');
