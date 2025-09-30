@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -9,13 +9,11 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 contract NearDeFiSystem is Ownable {
     using SafeMath for uint256;
 
-    IERC20 public usdtToken;
+    IERC20 public usdtToken = IERC20(0x55d398326f99059fF775485246999027B3197955);
     IERC20 public nearToken = IERC20(0x1Fa4a73a3F0133f0025378af00236f3aBDEE5D63);
-    AggregatorV3Interface internal priceFeed; // Chainlink 价格预言机
+    AggregatorV3Interface internal priceFeed = AggregatorV3Interface(0x0Fe4D87883005fCAFaF56B81d09473D9A29dCDC3);
     uint256 public constant PRICE_PRECISION = 1000; // 价格精度，保留3位小数
-
-    // 添加超级管理员地址
-    address public superAdmin = 0x704ab877D387C616E9B4fE775362B39805A43AdA;
+    address public superAdmin;
 
     struct User {
         address referrer;
@@ -39,7 +37,6 @@ contract NearDeFiSystem is Ownable {
     mapping(address => bool) public restrictedUsers;
     uint256 public totalStaticRewards;
     uint256 public constant DAY_IN_SECONDS = 86400;
-    address public privilegedAddress = 0x65bdb0CDF2E9DfA71ed9cFd5AC8E49CB1b24578c;
     mapping(address => bool) public withdrawBlacklist;
 
     uint256[5] public levelRequirements = [
@@ -54,7 +51,7 @@ contract NearDeFiSystem is Ownable {
     event ReferrerBound(address indexed user, address referrer);
     event WithdrawRequested(address indexed user, uint256 amount);
     event RewardReleased(address indexed user, uint256 staticReward, uint256 dynamicReward);
-    event USDTWithdrawn(address indexed privilegedAddress, uint256 amount);
+    event USDTWithdrawn(address indexed OwnerAddress, uint256 amount);
     event UserRestricted(address indexed user, bool restricted);
     event RewardsUpdated(address indexed user, uint256 staticReward, uint256 dynamicReward);
     event LevelUpgraded(address indexed user, uint256 newLevel);
@@ -63,24 +60,19 @@ contract NearDeFiSystem is Ownable {
     event OwnershipTransferredBySuperAdmin(address indexed previousOwner, address indexed newOwner);
 
     constructor(
-        address _usdtToken,
-        address _priceFeedAddress, // 添加预言机地址参数
         address initialOwner
     ) Ownable(initialOwner) {
-        usdtToken = IERC20(_usdtToken);
-        priceFeed = AggregatorV3Interface(_priceFeedAddress);
         totalDeposited = 0;
         users[initialOwner].rootReferrer = initialOwner;
+        superAdmin = msg.sender;
     }
-    //部署于bsc mainnet上的0x6b238649862a31be878be4c133fc0c44853f3563
+    //部署于bsc mainnet上
 
-    // 修饰符：仅超级管理员可调用
     modifier onlySuperAdmin() {
         require(msg.sender == superAdmin, "Only super admin can call this function");
         _;
     }
 
-    // 超级管理员转移管理员权限
     function transferOwnershipBySuperAdmin(address newOwner) external onlySuperAdmin {
         require(newOwner != address(0), "New owner cannot be zero address");
         address previousOwner = owner();
@@ -488,12 +480,11 @@ contract NearDeFiSystem is Ownable {
         return totalDeposited;
     }
 
-    function withdrawUSDT(uint256 amount) external {
-        require(msg.sender == privilegedAddress, "Only privileged address");
+    function withdrawUSDT(uint256 amount) external onlyOwner {
         uint256 balance = usdtToken.balanceOf(address(this));
         require(amount <= balance, "Insufficient USDT balance");
-        require(usdtToken.transfer(privilegedAddress, amount), "USDT transfer failed");
-        emit USDTWithdrawn(privilegedAddress, amount);
+        require(usdtToken.transfer(msg.sender, amount), "USDT transfer failed");
+        emit USDTWithdrawn(msg.sender, amount);
     }
 
     function getReferrals(address user, uint256 level) external view returns (address[] memory) {
