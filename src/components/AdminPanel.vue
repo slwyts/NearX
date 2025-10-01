@@ -148,13 +148,20 @@ async function withdrawAllUSDT() {
     return;
   }
   try {
-    // 将显示的余额字符串转回 wei 单位
-    const amountInWei = walletStore.web3.utils.toWei(contractBalance.value, walletStore.usdtDecimals === 6 ? 'mwei' : 'ether');
-    
-    await walletStore.contract.methods.withdrawUSDT(amountInWei).send({ from: walletStore.walletAddress });
+    // 1. 直接从 USDT 合约获取最新的、原始的 uint256 格式的余额
+    const balanceInWei = await walletStore.usdtContract.methods.balanceOf(walletStore.contract.options.address).call();
+
+    // 2. 检查余额是否大于0
+    if (balanceInWei.toString() === '0') {
+      alert(isChinese.value ? '合约余额为0，无需提取' : 'Contract balance is 0, no need to withdraw');
+      return;
+    }
+
+    // 3. 将获取到的原始余额直接传给 withdrawUSDT 函数
+    await walletStore.contract.methods.withdrawUSDT(balanceInWei).send({ from: walletStore.walletAddress });
     
     alert(isChinese.value ? '提取成功！' : 'Withdrawal successful!');
-    await fetchAdminData(); // 刷新数据
+    await fetchAdminData(); // 成功后刷新数据
   } catch (error) {
     console.error('提取失败:', error);
     alert(isChinese.value ? `提取失败: ${error.message}` : `Withdrawal failed: ${error.message}`);
