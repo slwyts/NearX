@@ -27,7 +27,12 @@ const currentComponent = computed(() => {
 const isSidebarCollapsed = ref(window.innerWidth <= 768);
 
 function handleSelect(componentName) {
-  router.push({ path: `/${componentName.toLowerCase()}` });
+  if (componentName === 'Home') {
+    router.push({ path: '/' });
+  } else {
+    // 其他组件则继续使用原有的小写路径逻辑
+    router.push({ path: `/${componentName.toLowerCase()}` });
+  }
   if (window.innerWidth <= 768) {
     isSidebarCollapsed.value = true;
   }

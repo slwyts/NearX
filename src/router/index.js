@@ -8,12 +8,12 @@ import AdminPanel from '@/components/AdminPanel.vue';
 
 
 const routes = [
-  { path: '/', component: Home },
-  { path: '/share', component: Share },
-  { path: '/members', component: Members },
-  { path: '/team-level', component: TeamLevel },
-  { path: '/announcements', component: Announcements },
-  { path: '/admin', component: AdminPanel },
+  { path: '/', name: 'Home', component: Home },
+  { path: '/share', name: 'Share', component: Share },
+  { path: '/members', name: 'Members', component: Members },
+  { path: '/teamlevel', name: 'TeamLevel', component: TeamLevel },
+  { path: '/announcements', name: 'Announcements', component: Announcements },
+  { path: '/admin', name: 'Admin', component: AdminPanel },
 
 ];
 
