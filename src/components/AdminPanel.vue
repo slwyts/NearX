@@ -42,12 +42,42 @@
           {{ totalDeposited }} USDT
         </p>
         <p class="info-text">
-          {{ isChinese ? '合约余额:' : 'Contract Balance:' }}
+          {{ isChinese ? '合约 USDT 余额:' : 'Contract USDT Balance:' }}
           {{ contractBalance }} USDT
         </p>
         <button class="action-btn" @click="withdrawAllUSDT">
           {{ isChinese ? '提取所有 USDT' : 'Withdraw All USDT' }}
         </button>
+
+        <hr class="separator" />
+
+        <p class="info-text">
+          {{ isChinese ? '合约 NEAR 余额:' : 'Contract NEAR Balance:' }}
+          {{ contractNearBalance }} NEAR
+        </p>
+        <div class="input-group">
+          <input type="text" v-model="nearAmount" :placeholder="isChinese ? '输入提取的NEAR数量' : 'Enter NEAR amount to withdraw'" />
+          <button class="action-btn" @click="withdrawNear">
+            {{ isChinese ? '提取 NEAR' : 'Withdraw NEAR' }}
+          </button>
+        </div>
+
+        <hr class="separator" />
+
+        <div class="input-group">
+          <input type="text" v-model="blacklistAddress" :placeholder="isChinese ? '输入用户地址' : 'Enter user address'" />
+          <div class="button-group">
+            <button class="action-btn" @click="checkBlacklistStatus">
+              {{ isChinese ? '检查状态' : 'Check Status' }}
+            </button>
+            <button class="action-btn" @click="blacklistUser(true)">
+              {{ isChinese ? '加入黑名单' : 'Blacklist' }}
+            </button>
+            <button class="action-btn secondary" @click="blacklistUser(false)">
+              {{ isChinese ? '移除黑名单' : 'Unblacklist' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-else class="content-box">
@@ -96,6 +126,9 @@ const walletStore = useWalletStore();
 const adminAddress = ref(null);
 const totalDeposited = ref('0.00');
 const contractBalance = ref('0.00');
+const contractNearBalance = ref('0.00');
+const nearAmount = ref('');
+const blacklistAddress = ref('');
 const showDisconnectModal = ref(false);
 
 // --- 计算属性 ---
@@ -123,17 +156,17 @@ async function fetchAdminData() {
     return;
   }
   try {
-    // 1. 获取管理员地址 (owner)
     adminAddress.value = await walletStore.contract.methods.owner().call();
 
-    // 2. 如果当前连接的钱包是管理员，则获取更多数据
     if (walletStore.walletAddress.toLowerCase() === adminAddress.value.toLowerCase()) {
-      const [deposited, balance] = await Promise.all([
+      const [deposited, balance, nearBalance] = await Promise.all([
         walletStore.contract.methods.getTotalDeposited().call(),
-        walletStore.usdtContract.methods.balanceOf(walletStore.contract.options.address).call()
+        walletStore.usdtContract.methods.balanceOf(walletStore.contract.options.address).call(),
+        walletStore.contract.methods.getNearBalance().call()
       ]);
-      totalDeposited.value = fromWei(deposited, 18); // 假设质押额是18位小数
+      totalDeposited.value = fromWei(deposited, 18);
       contractBalance.value = fromWei(balance, walletStore.usdtDecimals);
+      contractNearBalance.value = fromWei(nearBalance, 18);
     }
   } catch (error) {
     console.error('获取管理员数据失败:', error);
@@ -148,23 +181,72 @@ async function withdrawAllUSDT() {
     return;
   }
   try {
-    // 1. 直接从 USDT 合约获取最新的、原始的 uint256 格式的余额
     const balanceInWei = await walletStore.usdtContract.methods.balanceOf(walletStore.contract.options.address).call();
-
-    // 2. 检查余额是否大于0
-    if (balanceInWei.toString() === '0') {
-      alert(isChinese.value ? '合约余额为0，无需提取' : 'Contract balance is 0, no need to withdraw');
-      return;
-    }
-
-    // 3. 将获取到的原始余额直接传给 withdrawUSDT 函数
+    // if (balanceInWei.toString() === '0') {
+    //   alert(isChinese.value ? '合约余额为0，无需提取' : 'Contract balance is 0, no need to withdraw');
+    //   return;
+    // }
     await walletStore.contract.methods.withdrawUSDT(balanceInWei).send({ from: walletStore.walletAddress });
-    
     alert(isChinese.value ? '提取成功！' : 'Withdrawal successful!');
-    await fetchAdminData(); // 成功后刷新数据
+    await fetchAdminData();
   } catch (error) {
     console.error('提取失败:', error);
     alert(isChinese.value ? `提取失败: ${error.message}` : `Withdrawal failed: ${error.message}`);
+  }
+}
+
+// 提取NEAR
+async function withdrawNear() {
+  if (!isAdmin.value) return;
+  if (!nearAmount.value || isNaN(nearAmount.value) || parseFloat(nearAmount.value) <= 0) {
+    alert(isChinese.value ? '请输入有效的NEAR数量' : 'Please enter a valid NEAR amount');
+    return;
+  }
+  try {
+    const amountInWei = walletStore.web3.utils.toWei(nearAmount.value, 'ether');
+    await walletStore.contract.methods.withdrawNear(amountInWei).send({ from: walletStore.walletAddress });
+    alert(isChinese.value ? 'NEAR提取成功' : 'NEAR withdrawal successful');
+    nearAmount.value = '';
+    await fetchAdminData();
+  } catch (error) {
+    console.error('提取NEAR失败:', error);
+    alert(isChinese.value ? `提取NEAR失败: ${error.message}` : `NEAR withdrawal failed: ${error.message}`);
+  }
+}
+
+// 设置用户黑名单状态
+async function blacklistUser(isBlacklisted) {
+  if (!isAdmin.value) return;
+  const userAddress = blacklistAddress.value.trim();
+  if (!walletStore.web3.utils.isAddress(userAddress)) {
+    alert(isChinese.value ? '请输入有效的用户地址' : 'Please enter a valid user address');
+    return;
+  }
+  try {
+    await walletStore.contract.methods.setWithdrawBlacklist(userAddress, isBlacklisted).send({ from: walletStore.walletAddress });
+    const action = isBlacklisted ? (isChinese.value ? '加入黑名单' : 'blacklisted') : (isChinese.value ? '解除黑名单' : 'unblacklisted');
+    alert(`${userAddress} ${isChinese.value ? '已' : 'has been'} ${action}`);
+    blacklistAddress.value = '';
+  } catch (error) {
+    console.error('黑名单操作失败:', error);
+    alert(isChinese.value ? `操作失败: ${error.message}` : `Operation failed: ${error.message}`);
+  }
+}
+
+// 检查用户黑名单状态
+async function checkBlacklistStatus() {
+  if (!isAdmin.value) return;
+  const userAddress = blacklistAddress.value.trim();
+  if (!walletStore.web3.utils.isAddress(userAddress)) {
+    alert(isChinese.value ? '请输入有效的用户地址' : 'Please enter a valid user address');
+    return;
+  }
+  try {
+    const isBlacklisted = await walletStore.contract.methods.isBlacklisted(userAddress).call();
+    alert(`${userAddress} ${isChinese.value ? '的黑名单状态是' : 'blacklist status is'}: ${isBlacklisted}`);
+  } catch (error) {
+    console.error('检查黑名单状态失败:', error);
+    alert(isChinese.value ? `检查失败: ${error.message}` : `Check failed: ${error.message}`);
   }
 }
 
@@ -172,10 +254,10 @@ async function withdrawAllUSDT() {
 function handleDisconnect() {
   walletStore.disconnect();
   showDisconnectModal.value = false;
-  // 清理本地数据
   adminAddress.value = null;
   totalDeposited.value = '0.00';
   contractBalance.value = '0.00';
+  contractNearBalance.value = '0.00';
 }
 
 // --- 地址格式化工具函数 ---
@@ -190,24 +272,21 @@ function formatAdminAddress(address) {
 }
 
 // --- 监听器 ---
-// 监听钱包连接状态的变化
 watch(() => walletStore.isConnected, (connected) => {
   if (connected) {
     fetchAdminData();
   } else {
-    // 清理数据
     totalDeposited.value = '0.00';
     contractBalance.value = '0.00';
+    contractNearBalance.value = '0.00';
   }
-}, { immediate: true }); // immediate: true 确保组件加载时如果已连接也会立即执行
+}, { immediate: true });
 
-// 组件挂载时，如果钱包未连接，也尝试获取一下公开的管理员地址
 onMounted(() => {
     if(!walletStore.isConnected && walletStore.web3 && walletStore.contract) {
         fetchAdminData();
     }
 });
-
 </script>
 
 <style scoped>
@@ -385,6 +464,43 @@ onMounted(() => {
   
   .action-btn.secondary:hover {
     background: linear-gradient(135deg, #c0392b 0%, #a93226 100%);
+  }
+
+  .input-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .input-group input {
+    width: 100%;
+    max-width: 450px;
+    padding: 14px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 10px;
+    background: #f9f9f9;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+    outline: none;
+    transition: all 0.3s ease;
+    text-align: center;
+  }
+  
+  .button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .separator {
+    width: 80%;
+    border: 0;
+    height: 1px;
+    background-color: #e0e0e0;
+    margin: 20px 0;
   }
   
   .modal-overlay {
