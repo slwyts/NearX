@@ -49,73 +49,7 @@ export const CONTRACT_ABI = [
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"internalType": "bool",
-				"name": "restrict",
-				"type": "bool"
-			}
-		],
-		"name": "restrictUser",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"internalType": "bool",
-				"name": "isBlacklisted",
-				"type": "bool"
-			}
-		],
-		"name": "setWithdrawBlacklist",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_usdtToken",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_feeReceiver",
-				"type": "address"
-			},
 			{
 				"internalType": "address",
 				"name": "initialOwner",
@@ -216,6 +150,25 @@ export const CONTRACT_ABI = [
 			{
 				"indexed": true,
 				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferredBySuperAdmin",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
 				"name": "user",
 				"type": "address"
 			},
@@ -228,6 +181,31 @@ export const CONTRACT_ABI = [
 		],
 		"name": "ReferrerBound",
 		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "restrict",
+				"type": "bool"
+			}
+		],
+		"name": "restrictUser",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
 		"anonymous": false,
@@ -280,6 +258,50 @@ export const CONTRACT_ABI = [
 		"type": "event"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "isBlacklisted",
+				"type": "bool"
+			}
+		],
+		"name": "setWithdrawBlacklist",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnershipBySuperAdmin",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "upgradeLevel",
 		"outputs": [],
@@ -310,7 +332,7 @@ export const CONTRACT_ABI = [
 			{
 				"indexed": true,
 				"internalType": "address",
-				"name": "privilegedAddress",
+				"name": "OwnerAddress",
 				"type": "address"
 			},
 			{
@@ -424,13 +446,7 @@ export const CONTRACT_ABI = [
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "netAmount",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "fee",
+				"name": "amount",
 				"type": "uint256"
 			}
 		],
@@ -458,19 +474,6 @@ export const CONTRACT_ABI = [
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "feeReceiver",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -617,6 +620,19 @@ export const CONTRACT_ABI = [
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getNearPrice",
+		"outputs": [
+			{
+				"internalType": "int256",
+				"name": "",
+				"type": "int256"
 			}
 		],
 		"stateMutability": "view",
@@ -1010,20 +1026,7 @@ export const CONTRACT_ABI = [
 	},
 	{
 		"inputs": [],
-		"name": "privilegedAddress",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "RATE_PRECISION",
+		"name": "PRICE_PRECISION",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1084,6 +1087,19 @@ export const CONTRACT_ABI = [
 	},
 	{
 		"inputs": [],
+		"name": "superAdmin",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "totalDeposited",
 		"outputs": [
 			{
@@ -1098,19 +1114,6 @@ export const CONTRACT_ABI = [
 	{
 		"inputs": [],
 		"name": "totalStaticRewards",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "USDT_TO_NEAR_RATE",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1202,19 +1205,6 @@ export const CONTRACT_ABI = [
 			{
 				"internalType": "uint256",
 				"name": "lastWithdrawTime",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "WITHDRAW_FEE",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
 				"type": "uint256"
 			}
 		],
