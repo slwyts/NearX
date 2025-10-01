@@ -2,7 +2,7 @@
   <div class="admin-panel">
     <div class="header">
       <div class="logo-section">
-        <img src="../assets/near.webp" alt="NEAR Logo" class="near-logo" />
+        <img src="../assets/near1.png" alt="NEAR Logo" class="near-logo" />
         <span class="near-title"><strong>NEAR</strong></span>
       </div>
       <div class="nav-right">
@@ -295,7 +295,7 @@ onMounted(() => {
     position: relative;
     width: 100%;
     height: 350px;
-    background: url('http://cqplus.bsccoin.org/nera/img/neraBanner.jpg') no-repeat center center;
+    background: url('@/assets/near-background.jpg') no-repeat center center;
     background-size: cover;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);

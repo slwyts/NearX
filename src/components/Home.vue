@@ -243,18 +243,24 @@ async function releaseAndWithdraw() {
     showErrorModal(language.value === 'zh' ? '24小时内已提现' : 'Withdrawn within 24 hours');
     return;
   }
-  if (parseFloat(withdrawable.value) <= 0) {
+  
+  // 将前端显示的、带小数点的可提取金额字符串转换为合约需要的 uint256 格式 (wei)
+  const withdrawableInWei = walletStore.web3.utils.toWei(withdrawable.value, walletStore.usdtDecimals === 6 ? 'mwei' : 'ether');
+
+  if (BigInt(withdrawableInWei) <= 0) {
     showErrorModal(language.value === 'zh' ? '无可提取金额' : 'No withdrawable amount');
     return;
   }
 
   try {
-    await walletStore.contract.methods.releaseRewards().send({ from: walletStore.walletAddress, gas: 300000 });
-    const withdrawableWei = walletStore.web3.utils.toWei(withdrawable.value, walletStore.usdtDecimals === 6 ? 'mwei' : 'ether');
-    await walletStore.contract.methods.withdraw(withdrawableWei).send({ from: walletStore.walletAddress, gas: 300000 });
+    // 直接调用 withdraw 函数，传入转换后的金额
+    // 合约会自动先释放奖励，再进行提取
+    await walletStore.contract.methods.withdraw(withdrawableInWei).send({ from: walletStore.walletAddress, gas: 300000 });
     
+    // 成功后刷新界面数据
     await updateUserData();
     showSuccessModal(language.value === 'zh' ? '提取成功，NEAR已转入您的钱包' : 'Withdrawal successful, NEAR transferred to your wallet');
+  
   } catch (error) {
     console.error('Withdraw error:', error);
     showErrorModal(language.value === 'zh' ? `提取失败: ${error.message}` : `Withdrawal failed: ${error.message}`);

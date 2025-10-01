@@ -9,16 +9,30 @@ import {
   USDT_ABI
 } from '../services/contractService';
 
+// 使用一个公开的 BSC RPC 节点地址
+const BSC_RPC_URL = 'https://bsc-dataseed.binance.org/';
+
 export const useWalletStore = defineStore('wallet', () => {
+  // --- State ---
   const web3 = ref(null);
   const contract = ref(null);
   const usdtContract = ref(null);
   const walletAddress = ref('');
   const isConnected = ref(false);
   const isChinese = ref(true);
-  const usdtDecimals = ref(6);   
+  const usdtDecimals = ref(6); // 默认值
 
-
+  // --- 内部初始化函数 ---
+  function initializeProvider() {
+    // 默认使用公开的 RPC 提供商进行只读操作
+    const provider = new Web3.providers.HttpProvider(BSC_RPC_URL);
+    web3.value = new Web3(provider);
+    contract.value = new web3.value.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+    usdtContract.value = new web3.value.eth.Contract(USDT_ABI, USDT_ADDRESS);
+    console.log('Default read-only provider initialized.');
+  }
+  
+  // --- Actions ---
   function switchLanguage(lang) {
     isChinese.value = lang === 'zh';
   }
@@ -35,12 +49,11 @@ export const useWalletStore = defineStore('wallet', () => {
   }
 
   function disconnect() {
-    web3.value = null;
-    contract.value = null;
-    usdtContract.value = null;
+    // 断开连接时，恢复为只读的 provider
+    initializeProvider(); 
     walletAddress.value = '';
     isConnected.value = false;
-    console.log('Wallet disconnected.');
+    console.log('Wallet disconnected. Switched back to read-only provider.');
   }
 
   async function connect() {
@@ -50,6 +63,7 @@ export const useWalletStore = defineStore('wallet', () => {
     }
 
     try {
+      // 切换为钱包的 provider 以便进行交易
       web3.value = new Web3(window.ethereum);
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts.length === 0) {
@@ -57,7 +71,10 @@ export const useWalletStore = defineStore('wallet', () => {
       }
       walletAddress.value = accounts[0];
       isConnected.value = true;
+      
       await switchToBSCMainnet();
+
+      // 使用钱包的 provider 重新初始化合约实例
       contract.value = new web3.value.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
       usdtContract.value = new web3.value.eth.Contract(USDT_ABI, USDT_ADDRESS);
 
@@ -113,6 +130,9 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
+  // --- 初始化 ---
+  // store 创建时立即执行
+  initializeProvider();
 
   return {
     // State
