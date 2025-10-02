@@ -10,7 +10,7 @@ import {
 } from '../services/contractService';
 
 // 使用一个公开的 BSC RPC 节点地址
-const BSC_RPC_URL = 'https://bsc-dataseed.binance.org/';
+const BSC_RPC_URL = 'https://binance.llamarpc.com';
 
 export const useWalletStore = defineStore('wallet', () => {
   // --- State ---
