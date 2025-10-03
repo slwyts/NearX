@@ -243,8 +243,7 @@ async function releaseAndWithdraw() {
     showErrorModal(language.value === 'zh' ? '24小时内已提现' : 'Withdrawn within 24 hours');
     return;
   }
-  
-  // 将前端显示的、带小数点的可提取金额字符串转换为合约需要的 uint256 格式 (wei)
+
   const withdrawableInWei = walletStore.web3.utils.toWei(withdrawable.value, walletStore.usdtDecimals === 6 ? 'mwei' : 'ether');
 
   if (BigInt(withdrawableInWei) <= 0) {
@@ -253,17 +252,33 @@ async function releaseAndWithdraw() {
   }
 
   try {
-    // 直接调用 withdraw 函数，传入转换后的金额
-    // 合约会自动先释放奖励，再进行提取
-    await walletStore.contract.methods.withdraw(withdrawableInWei).send({ from: walletStore.walletAddress, gas: 300000 });
-    
+    // --- 动态计算 Gas ---
+    // 1. 创建交易对象
+    const transaction = walletStore.contract.methods.withdraw(withdrawableInWei);
+
+    // 2. 估算 Gas
+    const estimatedGas = await transaction.estimateGas({ from: walletStore.walletAddress });
+
+    // 3. (推荐) 增加 20% 的 buffer，防止因微小状态变化导致估算不足
+    const gasLimit = Math.round(Number(estimatedGas) * 1.2);
+
+    console.log(`Estimated Gas: ${estimatedGas}, Gas Limit with buffer: ${gasLimit}`);
+
+    // 4. 使用动态计算的 gasLimit 发送交易
+    await transaction.send({ from: walletStore.walletAddress, gas: gasLimit });
+
     // 成功后刷新界面数据
     await updateUserData();
     showSuccessModal(language.value === 'zh' ? '提取成功，NEAR已转入您的钱包' : 'Withdrawal successful, NEAR transferred to your wallet');
-  
+
   } catch (error) {
     console.error('Withdraw error:', error);
-    showErrorModal(language.value === 'zh' ? `提取失败: ${error.message}` : `Withdrawal failed: ${error.message}`);
+    // 如果错误是 out of gas, 估算阶段就会失败
+    if (error.message.includes('gas required exceeds allowance') || error.message.includes('out of gas')) {
+         showErrorModal(language.value === 'zh' ? `提现失败：交易Gas超出预算。` : `Withdrawal failed: Transaction is too complex and requires more gas.`);
+    } else {
+         showErrorModal(language.value === 'zh' ? `提取失败: ${error.message}` : `Withdrawal failed: ${error.message}`);
+    }
   }
 }
 
