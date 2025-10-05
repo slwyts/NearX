@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0xca5768CaF22BdA24b8F983Ba33c784f1AD5965d2';
+export const CONTRACT_ADDRESS = '0x03adaeA4892fBC9B92d719d9B5F327ec12D3C4E2';
 export const USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955';
 
 export const CONTRACT_ABI = [
@@ -29,6 +29,13 @@ export const CONTRACT_ABI = [
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "claimAndWithdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "uint256",
@@ -37,13 +44,6 @@ export const CONTRACT_ABI = [
 			}
 		],
 		"name": "deposit",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "releaseRewards",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -260,13 +260,26 @@ export const CONTRACT_ABI = [
 	{
 		"inputs": [
 			{
+				"internalType": "uint256",
+				"name": "_newAmount",
+				"type": "uint256"
+			}
+		],
+		"name": "setMinimumDeposit",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
 				"internalType": "address",
 				"name": "user",
 				"type": "address"
 			},
 			{
 				"internalType": "bool",
-				"name": "isBlacklisted",
+				"name": "_isBlacklisted",
 				"type": "bool"
 			}
 		],
@@ -363,19 +376,6 @@ export const CONTRACT_ABI = [
 		],
 		"name": "UserRestricted",
 		"type": "event"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "withdraw",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
 	},
 	{
 		"anonymous": false,
@@ -582,25 +582,6 @@ export const CONTRACT_ABI = [
 				"type": "address"
 			}
 		],
-		"name": "getLastWithdrawTime",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
 		"name": "getLevel",
 		"outputs": [
 			{
@@ -633,63 +614,6 @@ export const CONTRACT_ABI = [
 				"internalType": "int256",
 				"name": "",
 				"type": "int256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
-		"name": "getPendingDynamicReward",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
-		"name": "getPendingReward",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
-		"name": "getPendingStaticReward",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -784,25 +708,6 @@ export const CONTRACT_ABI = [
 				"type": "address"
 			}
 		],
-		"name": "getStakeReward",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
 		"name": "getTeamReward",
 		"outputs": [
 			{
@@ -873,45 +778,7 @@ export const CONTRACT_ABI = [
 				"type": "address"
 			}
 		],
-		"name": "getTotalReleasable",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
 		"name": "getUsdtBalance",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
-		"name": "getWithdrawableAmount",
 		"outputs": [
 			{
 				"internalType": "uint256",

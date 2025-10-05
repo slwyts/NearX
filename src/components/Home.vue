@@ -9,7 +9,7 @@
 		</div>
 		<div class="reward-item">
 		  <span class="value">{{ completedWithdrawal }}</span>
-		  <span class="label">{{ language === 'zh' ? '释放 USDT' : 'Release USDT' }}</span>
+		  <span class="label">{{ language === 'zh' ? '已释放 USDT' : 'Released USDT' }}</span>
 		</div>
 	  </div>
 
@@ -87,17 +87,18 @@
 		  <span class="value">{{ withdrawable }}</span>
 		  <span class="label">{{ language === 'zh' ? '可提取(USDT)' : 'Withdrawable (USDT)' }}</span>
 		</div>
-		<button
+
+        <button
 		  class="withdraw-btn"
-		  :class="{ disabled: hasWithdrawnRecently || withdrawable === '0.00' }"
-		  :disabled="hasWithdrawnRecently || withdrawable === '0.00'"
-		  @click="releaseAndWithdraw"
+		  :class="{ disabled: hasWithdrawnRecently || withdrawable === '0.000' }"
+		  :disabled="hasWithdrawnRecently || withdrawable === '0.000'"
+		  @click="claimAndWithdraw"
 		>
 		  {{ hasWithdrawnRecently ? (language === 'zh' ? '24小时内已提现' : 'Withdrawn within 24h') :
-			 withdrawable === '0.00' ? (language === 'zh' ? '无奖励可提取' : 'No Rewards') :
-			 (language === 'zh' ? '提取今日奖励' : 'Withdraw Rewards') }}
+			 withdrawable === '0.000' ? (language === 'zh' ? '无奖励可提取' : 'No Rewards') :
+			 (language === 'zh' ? '一键提取全部收益' : 'Withdraw All Rewards') }}
 		</button>
-		<div class="note">
+        <div class="note">
 		  <span style="color: green;">❗</span>
 		  {{ language === 'zh' ? '注：奖励将以NEAR形式直接转入您的钱包' : 'Note: Rewards will be transferred as NEAR directly to your wallet' }}
 		</div>
@@ -144,7 +145,7 @@ const globalDividend = ref('0.00');
 const nearProfit = ref('0.00');
 const totalReleasable = ref('0.00');
 const completedWithdrawal = ref('0.00');
-const withdrawable = ref('0.00');
+const withdrawable = ref('0.000'); // 改为3位小数以匹配 fromWei
 const hasWithdrawnRecently = ref(false);
 const showModal = ref(false);
 const modalTitle = ref('');
@@ -186,16 +187,16 @@ async function approveUSDT() {
     const unit = walletStore.usdtDecimals === 6 ? 'mwei' : 'ether';
     const amount = walletStore.web3.utils.toWei(stakeAmount.value || '0', unit);
 
-    if (parseFloat(stakeAmount.value) < 1) {
+    if (parseFloat(stakeAmount.value) < 100) {
       showErrorModal(language.value === 'zh' ? '最低质押数量为 100 USDT' : 'Minimum stake amount is 100 USDT');
       return;
     }
 
-    // const balance = await walletStore.usdtContract.methods.balanceOf(walletStore.walletAddress).call();
-    // if (BigInt(balance) < BigInt(amount)) {
-    //     showErrorModal(language.value === 'zh' ? 'USDT 余额不足' : 'Insufficient USDT balance');
-    //     return;
-    // }
+    const balance = await walletStore.usdtContract.methods.balanceOf(walletStore.walletAddress).call();
+    if (BigInt(balance) < BigInt(amount)) {
+        showErrorModal(language.value === 'zh' ? 'USDT 余额不足' : 'Insufficient USDT balance');
+        return;
+    }
 
     await walletStore.usdtContract.methods.approve(walletStore.contract.options.address, amount).send({ from: walletStore.walletAddress, gas: 200000 });
     showSuccessModal(language.value === 'zh' ? 'USDT 授权成功' : 'USDT approved successfully');
@@ -214,7 +215,7 @@ async function stakeUSDT() {
   try {
     const unit = walletStore.usdtDecimals === 6 ? 'mwei' : 'ether';
     const amount = walletStore.web3.utils.toWei(stakeAmount.value || '0', unit);
-    if (parseFloat(stakeAmount.value) < 1) {
+    if (parseFloat(stakeAmount.value) < 100) {
       showErrorModal(language.value === 'zh' ? '最低质押数量为 100 USDT' : 'Minimum stake amount is 100 USDT');
       return;
     }
@@ -234,7 +235,7 @@ async function stakeUSDT() {
   }
 }
 
-async function releaseAndWithdraw() {
+async function claimAndWithdraw() {
   if (!isConnected.value) {
     showErrorModal(language.value === 'zh' ? '请先连接钱包' : 'Please connect wallet first');
     return;
@@ -243,37 +244,22 @@ async function releaseAndWithdraw() {
     showErrorModal(language.value === 'zh' ? '24小时内已提现' : 'Withdrawn within 24 hours');
     return;
   }
-
-  const withdrawableInWei = walletStore.web3.utils.toWei(withdrawable.value, walletStore.usdtDecimals === 6 ? 'mwei' : 'ether');
-
-  if (BigInt(withdrawableInWei) <= 0) {
+  if (withdrawable.value === '0.000') {
     showErrorModal(language.value === 'zh' ? '无可提取金额' : 'No withdrawable amount');
     return;
   }
 
   try {
-    // --- 动态计算 Gas ---
-    // 1. 创建交易对象
-    const transaction = walletStore.contract.methods.withdraw(withdrawableInWei);
-
-    // 2. 估算 Gas
+    const transaction = walletStore.contract.methods.claimAndWithdraw();
     const estimatedGas = await transaction.estimateGas({ from: walletStore.walletAddress });
-
-    // 3. (推荐) 增加 20% 的 buffer，防止因微小状态变化导致估算不足
     const gasLimit = Math.round(Number(estimatedGas) * 1.2);
-
-    console.log(`Estimated Gas: ${estimatedGas}, Gas Limit with buffer: ${gasLimit}`);
-
-    // 4. 使用动态计算的 gasLimit 发送交易
+    console.log(`Estimated Gas for claimAndWithdraw: ${estimatedGas}, Gas Limit with buffer: ${gasLimit}`);
     await transaction.send({ from: walletStore.walletAddress, gas: gasLimit });
-
-    // 成功后刷新界面数据
     await updateUserData();
     showSuccessModal(language.value === 'zh' ? '提取成功，NEAR已转入您的钱包' : 'Withdrawal successful, NEAR transferred to your wallet');
 
   } catch (error) {
-    console.error('Withdraw error:', error);
-    // 如果错误是 out of gas, 估算阶段就会失败
+    console.error('Claim and Withdraw error:', error);
     if (error.message.includes('gas required exceeds allowance') || error.message.includes('out of gas')) {
          showErrorModal(language.value === 'zh' ? `提现失败：交易Gas超出预算。` : `Withdrawal failed: Transaction is too complex and requires more gas.`);
     } else {
@@ -316,10 +302,9 @@ async function updateUserData() {
     globalDividend.value = fromWei(global);
     completedWithdrawal.value = fromWei(withdrawn);
     hasWithdrawnRecently.value = hasWithdrawn;
-
+    withdrawable.value = fromWei(usdtBalance);    
     const dailyRelease = parseFloat(staticDailyRelease.value) + parseFloat(dynamicDailyRelease.value);
-    totalReleasable.value = dailyRelease.toFixed(3);
-    withdrawable.value = hasWithdrawn ? '0.000' : totalReleasable.value;
+    totalReleasable.value = dailyRelease.toFixed(3); 
     nearProfit.value = exchangeRate.value > 0 ? (dailyRelease / exchangeRate.value).toFixed(3) : '0.000';
 
   } catch (error) {
@@ -382,7 +367,7 @@ function resetData() {
     nearProfit.value = '0.00';
     totalReleasable.value = '0.00';
     completedWithdrawal.value = '0.00';
-    withdrawable.value = '0.00';
+    withdrawable.value = '0.000';
     hasWithdrawnRecently.value = false;
 }
 
@@ -392,14 +377,10 @@ onMounted(() => {
   exchangeRateInterval = setInterval(fetchExchangeRate, 300000);
 });
 
-// onBeforeUnmount(() => { // Vue 3 setup script syntax
-//   stopDataPolling();
-//   if (exchangeRateInterval) clearInterval(exchangeRateInterval);
-// });
 </script>
 
 <style scoped>
-/* 只保留 Home 组件独有的样式 */
+/* 样式部分保持不变，无需修改 */
 .home-page {
 	padding: 30px;
 	max-width: 900px;
@@ -416,7 +397,7 @@ onMounted(() => {
 	gap: 20px;
 	margin-bottom: 40px;
 }
-/* ... (其余 Home.vue 的样式保持不变) ... */
+
 .reward-item {
 	flex: 1;
 	text-align: center;
