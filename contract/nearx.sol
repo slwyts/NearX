@@ -123,29 +123,7 @@ contract NearDeFiSystem is Ownable {
         emit LevelUpgraded(msg.sender, u.level);
     }
 
-    function getPendingReward(address user) public view returns (uint256) {
-        User storage u = users[user];
-        if (u.totalDeposit == 0) return 0;
 
-        uint256 daysPassed = (block.timestamp - u.lastUpdateTime) / DAY_IN_SECONDS;
-        uint256 staticReward = u.pendingStaticReward;
-        uint256 dynamicReward = u.pendingDynamicReward;
-
-        if (daysPassed > 0) {
-            uint256 dailyStaticReward = getTodayStaticReward(user);
-            uint256 additionalStatic = dailyStaticReward.mul(daysPassed);
-            uint256 stageMultiplier = _getStageMultiplier(u.totalDeposit);
-            uint256 maxReward = u.totalDeposit.mul(stageMultiplier).div(10);
-            uint256 totalStatic = u.staticRewardReleased.add(staticReward).add(additionalStatic);
-            if (totalStatic > maxReward) {
-                additionalStatic = maxReward.sub(u.staticRewardReleased).sub(staticReward);
-            }
-            staticReward = staticReward.add(additionalStatic);
-
-            dynamicReward = dynamicReward.add(calculateDynamicReward(user).mul(daysPassed));
-        }
-        return staticReward.add(dynamicReward);
-    }
 
     function _updateRewards(address user) internal {
         User storage u = users[user];
@@ -306,10 +284,6 @@ contract NearDeFiSystem is Ownable {
         return block.timestamp < users[user].lastWithdrawTime + DAY_IN_SECONDS;
     }
 
-    function getLastWithdrawTime(address user) public view returns (uint256) {
-        return users[user].lastWithdrawTime;
-    }
-
     function getReleasedReward(address user) public view returns (uint256) {
         return users[user].staticRewardReleased.add(users[user].dynamicRewardReleased);
     }
@@ -323,9 +297,6 @@ contract NearDeFiSystem is Ownable {
         return calculateDynamicReward(user);
     }
 
-    function getStakeReward(address user) public view returns (uint256) {
-        return users[user].staticRewardReleased;
-    }
 
     function getDirectReward(address user) public view returns (uint256) {
         return _calculateDirectReward(user);
@@ -343,42 +314,17 @@ contract NearDeFiSystem is Ownable {
         return _calculateGlobalDividend(user);
     }
 
-    function getTotalReleasable(address user) public view returns (uint256) {
-        return getReleasedReward(user).add(getPendingReward(user));
-    }
 
     function getWithdrawn(address user) public view returns (uint256) {
         return users[user].withdrawnAmount;
     }
 
-    function getWithdrawableAmount(address user) public view returns (uint256) {
-        return getTotalReleasable(user).sub(users[user].withdrawnAmount);
-    }
 
     function getUsdtBalance(address user) public view returns (uint256) {
         return users[user].usdtBalance;
     }
 
-    function getPendingStaticReward(address user) public view returns (uint256) {
-        User storage u = users[user];
-        uint256 currentDayStart = block.timestamp - (block.timestamp % DAY_IN_SECONDS);
-        uint256 lastUpdateDayStart = u.lastUpdateTime - (u.lastUpdateTime % DAY_IN_SECONDS);
-        uint256 staticReward = u.pendingStaticReward;
 
-        if (currentDayStart > lastUpdateDayStart && u.totalDeposit > 0) {
-            uint256 daysPassed = (currentDayStart - lastUpdateDayStart) / DAY_IN_SECONDS;
-            uint256 dailyStaticReward = getTodayStaticReward(user);
-            uint256 additionalStatic = dailyStaticReward.mul(daysPassed);
-            uint256 stageMultiplier = _getStageMultiplier(u.totalDeposit);
-            uint256 maxReward = u.totalDeposit.mul(stageMultiplier).div(10);
-            uint256 totalStatic = u.staticRewardReleased.add(staticReward).add(additionalStatic);
-            if (totalStatic > maxReward) {
-                additionalStatic = maxReward.sub(u.staticRewardReleased).sub(staticReward);
-            }
-            staticReward = staticReward.add(additionalStatic);
-        }
-        return staticReward;
-    }
 
     function _getStageMultiplier(uint256 amount) private pure returns (uint256) {
         if (amount >= 100 ether && amount <= 500 ether) return 15;
@@ -402,18 +348,7 @@ contract NearDeFiSystem is Ownable {
             .add(_calculateGlobalDividend(user));
     }
 
-    function getPendingDynamicReward(address user) public view returns (uint256) {
-        User storage u = users[user];
-        uint256 currentDayStart = block.timestamp - (block.timestamp % DAY_IN_SECONDS);
-        uint256 lastUpdateDayStart = u.lastUpdateTime - (u.lastUpdateTime % DAY_IN_SECONDS);
-        uint256 dynamicReward = u.pendingDynamicReward;
 
-        if (currentDayStart > lastUpdateDayStart && u.totalDeposit > 0) {
-            uint256 daysPassed = (currentDayStart - lastUpdateDayStart) / DAY_IN_SECONDS;
-            dynamicReward = dynamicReward.add(calculateDynamicReward(user).mul(daysPassed));
-        }
-        return dynamicReward;
-    }
 
     function _calculateDirectReward(address user) internal view returns (uint256) {
         uint256 reward = 0;
