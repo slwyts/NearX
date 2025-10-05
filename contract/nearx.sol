@@ -151,20 +151,41 @@ contract NearDeFiSystem is Ownable {
         User storage u = users[user];
         if (u.totalDeposit == 0) return;
 
-        uint256 pendingReward = getPendingReward(user);
-        uint256 staticReward = pendingReward.sub(u.pendingDynamicReward);
-        uint256 dynamicReward = pendingReward.sub(u.pendingStaticReward);
+        uint256 daysPassed = (block.timestamp - u.lastUpdateTime) / DAY_IN_SECONDS;
+        uint256 newStaticReward = 0;
+        uint256 newDynamicReward = 0;
 
+        if (daysPassed > 0) {
+            newStaticReward = getTodayStaticReward(user).mul(daysPassed);
+            // 加入最大收益限制
+            uint256 stageMultiplier = _getStageMultiplier(u.totalDeposit);
+            uint256 maxReward = u.totalDeposit.mul(stageMultiplier).div(10);
+            uint256 totalStatic = u.staticRewardReleased.add(u.pendingStaticReward).add(newStaticReward);
+            if (totalStatic > maxReward) {
+                newStaticReward = maxReward.sub(u.staticRewardReleased).sub(u.pendingStaticReward);
+            }
+            
+            newDynamicReward = calculateDynamicReward(user).mul(daysPassed);
+        }
+        
+        // 加上可能存在待结算奖励
+        uint256 totalStaticToAdd = u.pendingStaticReward.add(newStaticReward);
+        uint256 totalDynamicToAdd = u.pendingDynamicReward.add(newDynamicReward);
+
+        // 将计算出的收益加到对应的账户中
+        u.staticRewardReleased = u.staticRewardReleased.add(totalStaticToAdd);
+        u.dynamicRewardReleased = u.dynamicRewardReleased.add(totalDynamicToAdd);
+
+        // 将总收益加到可提现余额
+        u.usdtBalance = u.usdtBalance.add(totalStaticToAdd).add(totalDynamicToAdd);
+
+        // 清理和更新
         u.pendingStaticReward = 0;
         u.pendingDynamicReward = 0;
-        u.staticRewardReleased = u.staticRewardReleased.add(staticReward);
-        u.dynamicRewardReleased = u.dynamicRewardReleased.add(dynamicReward);
-        u.usdtBalance = u.usdtBalance.add(staticReward).add(dynamicReward);
         u.lastUpdateTime = block.timestamp;
 
-        totalStaticRewards = totalStaticRewards.add(staticReward);
-
-        emit RewardsUpdated(user, staticReward, dynamicReward);
+        totalStaticRewards = totalStaticRewards.add(totalStaticToAdd);
+        emit RewardsUpdated(user, totalStaticToAdd, totalDynamicToAdd);
     }
 
     function deposit(uint256 amount) external {

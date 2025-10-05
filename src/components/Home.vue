@@ -186,16 +186,16 @@ async function approveUSDT() {
     const unit = walletStore.usdtDecimals === 6 ? 'mwei' : 'ether';
     const amount = walletStore.web3.utils.toWei(stakeAmount.value || '0', unit);
 
-    if (parseFloat(stakeAmount.value) < 100) {
+    if (parseFloat(stakeAmount.value) < 1) {
       showErrorModal(language.value === 'zh' ? '最低质押数量为 100 USDT' : 'Minimum stake amount is 100 USDT');
       return;
     }
 
-    const balance = await walletStore.usdtContract.methods.balanceOf(walletStore.walletAddress).call();
-    if (BigInt(balance) < BigInt(amount)) {
-        showErrorModal(language.value === 'zh' ? 'USDT 余额不足' : 'Insufficient USDT balance');
-        return;
-    }
+    // const balance = await walletStore.usdtContract.methods.balanceOf(walletStore.walletAddress).call();
+    // if (BigInt(balance) < BigInt(amount)) {
+    //     showErrorModal(language.value === 'zh' ? 'USDT 余额不足' : 'Insufficient USDT balance');
+    //     return;
+    // }
 
     await walletStore.usdtContract.methods.approve(walletStore.contract.options.address, amount).send({ from: walletStore.walletAddress, gas: 200000 });
     showSuccessModal(language.value === 'zh' ? 'USDT 授权成功' : 'USDT approved successfully');
@@ -214,7 +214,7 @@ async function stakeUSDT() {
   try {
     const unit = walletStore.usdtDecimals === 6 ? 'mwei' : 'ether';
     const amount = walletStore.web3.utils.toWei(stakeAmount.value || '0', unit);
-    if (parseFloat(stakeAmount.value) < 100) {
+    if (parseFloat(stakeAmount.value) < 1) {
       showErrorModal(language.value === 'zh' ? '最低质押数量为 100 USDT' : 'Minimum stake amount is 100 USDT');
       return;
     }
