@@ -14,6 +14,7 @@ contract NearDeFiSystem is Ownable {
     AggregatorV3Interface internal priceFeed = AggregatorV3Interface(0x0Fe4D87883005fCAFaF56B81d09473D9A29dCDC3);
     uint256 public constant PRICE_PRECISION = 1000; // 价格精度，保留3位小数
     address public superAdmin;
+    uint256 private _minimumDepositAmount;
 
     struct User {
         address referrer;
@@ -65,6 +66,7 @@ contract NearDeFiSystem is Ownable {
         totalDeposited = 0;
         users[initialOwner].rootReferrer = initialOwner;
         superAdmin = msg.sender;
+        _minimumDepositAmount = 100 ether;
     }
     //部署于bsc mainnet上
 
@@ -166,7 +168,7 @@ contract NearDeFiSystem is Ownable {
     }
 
     function deposit(uint256 amount) external {
-        require(amount >= 100 ether, "Minimum deposit is 100 USDT");
+        require(amount >= _minimumDepositAmount, "Deposit amount is less than minimum");
         require(usdtToken.transferFrom(msg.sender, address(this), amount), "USDT transfer failed");
 
         _updateRewards(msg.sender);
@@ -177,10 +179,6 @@ contract NearDeFiSystem is Ownable {
         }
         u.totalDeposit = u.totalDeposit.add(amount);
         totalDeposited = totalDeposited.add(amount);
-
-        uint256 stageMultiplier = _getStageMultiplier(amount);
-        u.usdtBalance = u.usdtBalance.add(amount.mul(stageMultiplier).div(10));
-
         emit Deposited(msg.sender, amount, totalDeposited);
     }
 
@@ -257,9 +255,14 @@ contract NearDeFiSystem is Ownable {
         emit WithdrawAttempt(msg.sender, getTodayStaticReward(msg.sender), calculateDynamicReward(msg.sender));
     }
 
-    function setWithdrawBlacklist(address user, bool isBlacklisted) external onlyOwner {
-        withdrawBlacklist[user] = isBlacklisted;
-        emit WithdrawBlacklistUpdated(user, isBlacklisted);
+    function setWithdrawBlacklist(address user, bool _isBlacklisted) external onlyOwner {
+        withdrawBlacklist[user] = _isBlacklisted;
+        emit WithdrawBlacklistUpdated(user, _isBlacklisted);
+    }
+
+    function setMinimumDeposit(uint256 _newAmount) external onlyOwner {
+        require(_newAmount > 0, "Minimum deposit must be greater than 0");
+        _minimumDepositAmount = _newAmount;
     }
 
     function isBlacklisted(address user) external view returns (bool) {
