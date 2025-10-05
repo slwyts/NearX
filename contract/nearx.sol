@@ -68,7 +68,6 @@ contract NearDeFiSystem is Ownable {
         superAdmin = msg.sender;
         _minimumDepositAmount = 100 ether;
     }
-    //部署于bsc mainnet上
 
     modifier onlySuperAdmin() {
         require(msg.sender == superAdmin, "Only super admin can call this function");
@@ -82,7 +81,6 @@ contract NearDeFiSystem is Ownable {
         emit OwnershipTransferredBySuperAdmin(previousOwner, newOwner);
     }
 
-    // 获取最新的NEAR/USDT价格（保留3位小数，放大1000倍）
     function getNearPrice() public view returns (int) {
         (, int price,,,) = priceFeed.latestRoundData();
         uint8 decimals = priceFeed.decimals();
@@ -123,8 +121,6 @@ contract NearDeFiSystem is Ownable {
         emit LevelUpgraded(msg.sender, u.level);
     }
 
-
-
     function _updateRewards(address user) internal {
         User storage u = users[user];
         if (u.totalDeposit == 0) return;
@@ -135,29 +131,22 @@ contract NearDeFiSystem is Ownable {
 
         if (daysPassed > 0) {
             newStaticReward = getTodayStaticReward(user).mul(daysPassed);
-            // 加入最大收益限制
             uint256 stageMultiplier = _getStageMultiplier(u.totalDeposit);
             uint256 maxReward = u.totalDeposit.mul(stageMultiplier).div(10);
             uint256 totalStatic = u.staticRewardReleased.add(u.pendingStaticReward).add(newStaticReward);
             if (totalStatic > maxReward) {
                 newStaticReward = maxReward.sub(u.staticRewardReleased).sub(u.pendingStaticReward);
             }
-            
             newDynamicReward = calculateDynamicReward(user).mul(daysPassed);
         }
         
-        // 加上可能存在待结算奖励
         uint256 totalStaticToAdd = u.pendingStaticReward.add(newStaticReward);
         uint256 totalDynamicToAdd = u.pendingDynamicReward.add(newDynamicReward);
 
-        // 将计算出的收益加到对应的账户中
         u.staticRewardReleased = u.staticRewardReleased.add(totalStaticToAdd);
         u.dynamicRewardReleased = u.dynamicRewardReleased.add(totalDynamicToAdd);
-
-        // 将总收益加到可提现余额
         u.usdtBalance = u.usdtBalance.add(totalStaticToAdd).add(totalDynamicToAdd);
 
-        // 清理和更新
         u.pendingStaticReward = 0;
         u.pendingDynamicReward = 0;
         u.lastUpdateTime = block.timestamp;
@@ -186,7 +175,6 @@ contract NearDeFiSystem is Ownable {
         require(u.referrer == address(0), "Referrer already set");
         require(referrer != msg.sender, "Cannot refer yourself");
         require(referrer != address(0), "Invalid referrer address");
-
         uint256 chainDepth = getReferralChainDepth(referrer);
         require(chainDepth < 10, "Referral chain too deep");
 
@@ -212,47 +200,33 @@ contract NearDeFiSystem is Ownable {
         return depth;
     }
 
-    function releaseRewards() external {
-        _updateRewards(msg.sender);
+    function claimAndWithdraw() external {
         User storage u = users[msg.sender];
-        require(u.usdtBalance > 0, "No rewards to release");
-        uint256 staticReward = u.staticRewardReleased;
-        uint256 dynamicReward = u.dynamicRewardReleased;
-        u.pendingStaticReward = 0;
-        u.pendingDynamicReward = 0;
-        emit RewardReleased(msg.sender, staticReward, dynamicReward);
-    }
+        _updateRewards(msg.sender);
+        uint256 amountToWithdraw = u.usdtBalance;
 
-    function withdraw(uint256 amount) external {
-        User storage u = users[msg.sender];
-        _updateRewards(msg.sender);
         require(!restrictedUsers[msg.sender], "User is restricted");
         require(u.totalDeposit > 0, "No deposit");
         require(block.timestamp >= u.lastWithdrawTime + DAY_IN_SECONDS, "Can only withdraw once every 24 hours");
-        require(amount <= u.usdtBalance, "Insufficient usdtBalance");
+        require(amountToWithdraw > 0, "No balance to withdraw");
         require(!withdrawBlacklist[msg.sender], "You have been blacklisted from withdrawing");
 
-        // 获取实时的NEAR/USDT价格（放大1000倍，保留3位小数）
         int nearPrice = getNearPrice();
         require(nearPrice > 0, "Invalid price from oracle");
 
-        // 计算对应的NEAR数量
-        // amount 是 USDT数量 (以wei为单位，10^18)
-        // nearPrice 是 USDT/NEAR价格 (放大1000倍)
-        // 增加额外精度因子 10^18 以保留小数部分
         uint256 PRECISION_FACTOR = 10**18;
-        uint256 nearAmount = (amount.mul(PRICE_PRECISION).mul(PRECISION_FACTOR)).div(uint256(nearPrice)).div(PRECISION_FACTOR);
+        uint256 nearAmount = (amountToWithdraw.mul(PRICE_PRECISION).mul(PRECISION_FACTOR)).div(uint256(nearPrice)).div(PRECISION_FACTOR);
 
-        u.withdrawnAmount = u.withdrawnAmount.add(amount);
-        u.usdtBalance = u.usdtBalance.sub(amount);
+        u.withdrawnAmount = u.withdrawnAmount.add(amountToWithdraw);
+        u.usdtBalance = 0; // 直接清零
         u.lastWithdrawTime = block.timestamp;
 
-        // 转移NEAR代币给用户
         require(nearToken.transfer(msg.sender, nearAmount), "NEAR transfer failed");
 
         emit WithdrawRequested(msg.sender, nearAmount);
         emit WithdrawAttempt(msg.sender, getTodayStaticReward(msg.sender), calculateDynamicReward(msg.sender));
     }
+    // ==============================================================================
 
     function setWithdrawBlacklist(address user, bool _isBlacklisted) external onlyOwner {
         withdrawBlacklist[user] = _isBlacklisted;
@@ -276,10 +250,6 @@ contract NearDeFiSystem is Ownable {
         require(nearToken.transfer(msg.sender, amount), "NEAR transfer failed");
     }
 
-    function _getTotalDailyReward(address user) internal view returns (uint256) {
-        return getTodayStaticReward(user).add(calculateDynamicReward(user));
-    }
-
     function hasWithdrawnInLast24Hours(address user) public view returns (bool) {
         return block.timestamp < users[user].lastWithdrawTime + DAY_IN_SECONDS;
     }
@@ -297,7 +267,6 @@ contract NearDeFiSystem is Ownable {
         return calculateDynamicReward(user);
     }
 
-
     function getDirectReward(address user) public view returns (uint256) {
         return _calculateDirectReward(user);
     }
@@ -314,17 +283,13 @@ contract NearDeFiSystem is Ownable {
         return _calculateGlobalDividend(user);
     }
 
-
     function getWithdrawn(address user) public view returns (uint256) {
         return users[user].withdrawnAmount;
     }
 
-
     function getUsdtBalance(address user) public view returns (uint256) {
         return users[user].usdtBalance;
     }
-
-
 
     function _getStageMultiplier(uint256 amount) private pure returns (uint256) {
         if (amount >= 100 ether && amount <= 500 ether) return 15;
@@ -348,19 +313,15 @@ contract NearDeFiSystem is Ownable {
             .add(_calculateGlobalDividend(user));
     }
 
-
-
     function _calculateDirectReward(address user) internal view returns (uint256) {
         uint256 reward = 0;
         bool noBurn = users[user].totalDeposit >= 3001 ether;
-        
         for (uint256 i = 1; i <= 6; i++) {
             address[] memory refs = getReferralsAtLevel(user, i);
             for (uint256 j = 0; j < refs.length; j++) {
                 uint256 refDeposit = users[refs[j]].totalDeposit;
                 uint256 rate = (i == 1) ? 50 : (i == 2) ? 30 : 10;
-                uint256 burnAmount = noBurn ? refDeposit : 
-                    (refDeposit > users[user].totalDeposit ? users[user].totalDeposit : refDeposit);
+                uint256 burnAmount = noBurn ? refDeposit : (refDeposit > users[user].totalDeposit ? users[user].totalDeposit : refDeposit);
                 reward = reward.add(burnAmount.mul(rate).div(1000));
             }
         }
@@ -371,14 +332,12 @@ contract NearDeFiSystem is Ownable {
         uint256 reward = 0;
         uint256 maxLevel = users[user].referralsCount[1] > 10 ? 10 : users[user].referralsCount[1];
         bool noBurn = users[user].totalDeposit >= 3001 ether;
-        
         for (uint256 i = 1; i <= maxLevel; i++) {
             address[] memory refs = getReferralsAtLevel(user, i);
             for (uint256 j = 0; j < refs.length; j++) {
                 uint256 staticReward = getTodayStaticReward(refs[j]);
                 uint256 refDeposit = users[refs[j]].totalDeposit;
-                uint256 burnAmount = noBurn ? staticReward : 
-                    (refDeposit > users[user].totalDeposit ? getTodayStaticReward(user) : staticReward);
+                uint256 burnAmount = noBurn ? staticReward : (refDeposit > users[user].totalDeposit ? getTodayStaticReward(user) : staticReward);
                 reward = reward.add(burnAmount.mul(5).div(100));
             }
         }
@@ -387,7 +346,6 @@ contract NearDeFiSystem is Ownable {
 
     function getReferralsAtLevel(address user, uint256 level) internal view returns (address[] memory) {
         if (level == 1) return referrals[user][1];
-        
         address[] memory directRefs = referrals[user][1];
         address[] memory result = new address[](0);
         for (uint256 i = 0; i < directRefs.length; i++) {
@@ -413,7 +371,6 @@ contract NearDeFiSystem is Ownable {
         uint256 teamPerformance = root == address(0) ? 0 : getAllReferralsTotalPerformance(root);
         uint256 rate = _getTeamRate(teamPerformance);
         if (rate == 0) return 0;
-
         return getTodayStaticReward(user).mul(rate).div(100);
     }
 
