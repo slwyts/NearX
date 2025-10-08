@@ -471,4 +471,60 @@ contract NearDeFiSystem is Ownable {
             _updateRewards(userAddresses[i]);
         }
     }
+
+    // 只读预览：不改状态，返回当前可提取的USDT和组成明细，供前端判定按钮是否可用
+    function previewClaimable(address user)
+        external
+        view
+        returns (
+            uint256 claimableUSDT,
+            uint256 daysPassed,
+            uint256 staticToAdd,
+            uint256 dynamicToAdd
+        )
+    {
+        User storage u = users[user];
+
+        // 基础：账户已有可提取余额
+        claimableUSDT = u.usdtBalance;
+
+        if (u.totalDeposit == 0) {
+            // 没有存款，直接返回已有余额（通常为0）
+            return (claimableUSDT, 0, 0, 0);
+        }
+
+        // 距离上次结算经过的完整天数
+        daysPassed = (block.timestamp - u.lastUpdateTime) / DAY_IN_SECONDS;
+
+        uint256 newStaticReward = 0;
+        uint256 newDynamicReward = 0;
+
+        if (daysPassed > 0) {
+            // 预计新增静态收益（天为单位）
+            newStaticReward = getTodayStaticReward(user).mul(daysPassed);
+
+            // 静态收益封顶逻辑（与 _updateRewards 一致，但避免下溢）
+            uint256 stageMultiplier = _getStageMultiplier(u.totalDeposit);
+            uint256 maxReward = u.totalDeposit.mul(stageMultiplier).div(10);
+            uint256 totalStaticBefore = u.staticRewardReleased.add(u.pendingStaticReward);
+            if (totalStaticBefore >= maxReward) {
+                newStaticReward = 0; // 已达上限
+            } else {
+                uint256 headroom = maxReward.sub(totalStaticBefore);
+                if (newStaticReward > headroom) {
+                    newStaticReward = headroom;
+                }
+            }
+
+            // 预计新增动态收益（天为单位）
+            newDynamicReward = calculateDynamicReward(user).mul(daysPassed);
+        }
+
+        // 加上 pendings，即本应在下一次结算累加的部分
+        staticToAdd = u.pendingStaticReward.add(newStaticReward);
+        dynamicToAdd = u.pendingDynamicReward.add(newDynamicReward);
+
+        // 预估总可提取余额（不更改状态）
+        claimableUSDT = claimableUSDT.add(staticToAdd).add(dynamicToAdd);
+    }
 }

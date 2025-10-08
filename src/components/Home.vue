@@ -88,16 +88,16 @@
 		  <span class="label">{{ language === 'zh' ? '可提取(USDT)' : 'Withdrawable (USDT)' }}</span>
 		</div>
 
-        <button
-		  class="withdraw-btn"
-		  :class="{ disabled: hasWithdrawnRecently || withdrawable === '0.000' }"
-		  :disabled="hasWithdrawnRecently || withdrawable === '0.000'"
-		  @click="claimAndWithdraw"
-		>
-		  {{ hasWithdrawnRecently ? (language === 'zh' ? '24小时内已提现' : 'Withdrawn within 24h') :
-			 withdrawable === '0.000' ? (language === 'zh' ? '无奖励可提取' : 'No Rewards') :
-			 (language === 'zh' ? '一键提取全部收益' : 'Withdraw All Rewards') }}
-		</button>
+				<button
+					class="withdraw-btn"
+					:class="{ disabled: hasWithdrawnRecently || !hasClaimable }"
+					:disabled="hasWithdrawnRecently || !hasClaimable"
+					@click="claimAndWithdraw"
+				>
+					{{ hasWithdrawnRecently ? (language === 'zh' ? '24小时内已提现' : 'Withdrawn within 24h') :
+						 (!hasClaimable ? (language === 'zh' ? '无奖励可提取' : 'No Rewards') :
+						 (language === 'zh' ? '一键提取全部收益' : 'Withdraw All Rewards')) }}
+				</button>
         <div class="note">
 		  <span style="color: green;">❗</span>
 		  {{ language === 'zh' ? '注：奖励将以NEAR形式直接转入您的钱包' : 'Note: Rewards will be transferred as NEAR directly to your wallet' }}
@@ -146,6 +146,7 @@ const nearProfit = ref('0.00');
 const totalReleasable = ref('0.00');
 const completedWithdrawal = ref('0.00');
 const withdrawable = ref('0.000'); // 改为3位小数以匹配 fromWei
+const hasClaimable = ref(false);   // 精确判断可提金额（避免四舍五入显示为0）
 const hasWithdrawnRecently = ref(false);
 const showModal = ref(false);
 const modalTitle = ref('');
@@ -244,7 +245,7 @@ async function claimAndWithdraw() {
     showErrorModal(language.value === 'zh' ? '24小时内已提现' : 'Withdrawn within 24 hours');
     return;
   }
-  if (withdrawable.value === '0.000') {
+	if (!hasClaimable.value) {
     showErrorModal(language.value === 'zh' ? '无可提取金额' : 'No withdrawable amount');
     return;
   }
@@ -274,22 +275,23 @@ async function updateUserData() {
     const address = walletStore.walletAddress;
     const contract = walletStore.contract;
 
-    const [
-      userData, usdtBalance, releasedReward, staticDaily, dynamicDaily,
-      direct, share, team, global, withdrawn, hasWithdrawn
-    ] = await Promise.all([
-      contract.methods.users(address).call(),
-      contract.methods.getUsdtBalance(address).call(),
-      contract.methods.getReleasedReward(address).call(),
-      contract.methods.getTodayStaticReward(address).call(),
-      contract.methods.getTodayDynamicReward(address).call(),
-      contract.methods.getDirectReward(address).call(),
-      contract.methods.getShareReward(address).call(),
-      contract.methods.getTeamReward(address).call(),
-      contract.methods.getGlobalDividend(address).call(),
-      contract.methods.getWithdrawn(address).call(),
-      contract.methods.hasWithdrawnInLast24Hours(address).call()
-    ]);
+			const [
+				userData, usdtBalance, releasedReward, staticDaily, dynamicDaily,
+				direct, share, team, global, withdrawn, hasWithdrawn, latestBlock
+			] = await Promise.all([
+			contract.methods.users(address).call(),
+			contract.methods.getUsdtBalance(address).call(),
+			contract.methods.getReleasedReward(address).call(),
+			contract.methods.getTodayStaticReward(address).call(),
+			contract.methods.getTodayDynamicReward(address).call(),
+			contract.methods.getDirectReward(address).call(),
+			contract.methods.getShareReward(address).call(),
+			contract.methods.getTeamReward(address).call(),
+			contract.methods.getGlobalDividend(address).call(),
+			contract.methods.getWithdrawn(address).call(),
+				contract.methods.hasWithdrawnInLast24Hours(address).call(),
+				walletStore.web3.eth.getBlock('latest')
+		]);
 
     rewardUSDT.value = fromWei(usdtBalance);
     releasedUSDT.value = fromWei(releasedReward);
@@ -300,12 +302,65 @@ async function updateUserData() {
     sharingReward.value = fromWei(share);
     teamReward.value = fromWei(team);
     globalDividend.value = fromWei(global);
-    completedWithdrawal.value = fromWei(withdrawn);
-    hasWithdrawnRecently.value = hasWithdrawn;
-    withdrawable.value = fromWei(usdtBalance);    
-    const dailyRelease = parseFloat(staticDailyRelease.value) + parseFloat(dynamicDailyRelease.value);
-    totalReleasable.value = dailyRelease.toFixed(3); 
-    nearProfit.value = exchangeRate.value > 0 ? (dailyRelease / exchangeRate.value).toFixed(3) : '0.000';
+	completedWithdrawal.value = fromWei(withdrawn);
+	hasWithdrawnRecently.value = hasWithdrawn;
+		// 优先调用合约的 previewClaimable；若不存在则使用回退算法
+		let claimableRaw = '0';
+		let staticToAddBI = 0n;
+		let dynamicToAddBI = 0n;
+		try {
+			if (contract.methods.previewClaimable) {
+				const preview = await contract.methods.previewClaimable(address).call();
+				claimableRaw = preview?.claimableUSDT ?? (Array.isArray(preview) ? preview[0] : '0');
+				staticToAddBI = BigInt((preview?.staticToAdd ?? (Array.isArray(preview) ? preview[2] : '0')) || '0');
+				dynamicToAddBI = BigInt((preview?.dynamicToAdd ?? (Array.isArray(preview) ? preview[3] : '0')) || '0');
+			} else {
+				throw new Error('previewClaimable not available');
+			}
+		} catch (e) {
+			// 回退：在前端计算预览结果
+			const nowTs = BigInt(latestBlock.timestamp || Math.floor(Date.now() / 1000));
+			const lastUpdate = BigInt(userData.lastUpdateTime || '0');
+			const daysPassed = nowTs > lastUpdate ? (nowTs - lastUpdate) / 86400n : 0n;
+
+			const totalDepositBI = BigInt(userData.totalDeposit || '0');
+			const usdtBalanceBI = BigInt(usdtBalance || '0');
+			const pendingStaticBI = BigInt(userData.pendingStaticReward || '0');
+			const pendingDynamicBI = BigInt(userData.pendingDynamicReward || '0');
+			const staticDailyBI = BigInt(staticDaily || '0');
+			const dynamicDailyBI = BigInt(dynamicDaily || '0');
+
+			let newStaticBI = staticDailyBI * daysPassed;
+			const stageMultiplier = (totalDepositBI >= 3001n * 10n ** 18n) ? 30n
+														: (totalDepositBI >= 1001n * 10n ** 18n) ? 25n
+														: (totalDepositBI >= 501n * 10n ** 18n) ? 20n
+														: (totalDepositBI >= 100n * 10n ** 18n) ? 15n
+														: 0n;
+			const maxReward = (totalDepositBI * stageMultiplier) / 10n;
+			const staticReleasedBI = BigInt(userData.staticRewardReleased || '0');
+			const totalStaticBefore = staticReleasedBI + pendingStaticBI;
+			if (totalStaticBefore >= maxReward) {
+				newStaticBI = 0n;
+			} else {
+				const headroom = maxReward - totalStaticBefore;
+				if (newStaticBI > headroom) newStaticBI = headroom;
+			}
+			const newDynamicBI = dynamicDailyBI * daysPassed;
+
+			staticToAddBI = pendingStaticBI + newStaticBI;
+			dynamicToAddBI = pendingDynamicBI + newDynamicBI;
+			const claimableBI = usdtBalanceBI + staticToAddBI + dynamicToAddBI;
+			claimableRaw = claimableBI.toString();
+		}
+
+		withdrawable.value = fromWei(claimableRaw || '0');
+		hasClaimable.value = BigInt(claimableRaw || '0') > 0n;
+		const toReleaseSum = (staticToAddBI + dynamicToAddBI).toString();
+		totalReleasable.value = fromWei(toReleaseSum);
+
+	// 估算每日 NEAR 收益（基于每日静态+动态，和汇率）
+	const dailyRelease = parseFloat(fromWei(staticDaily)) + parseFloat(fromWei(dynamicDaily));
+	nearProfit.value = exchangeRate.value > 0 ? (dailyRelease / exchangeRate.value).toFixed(3) : '0.000';
 
   } catch (error) {
     console.error('Update user data error:', error);
@@ -368,6 +423,7 @@ function resetData() {
     totalReleasable.value = '0.00';
     completedWithdrawal.value = '0.00';
     withdrawable.value = '0.000';
+	hasClaimable.value = false;
     hasWithdrawnRecently.value = false;
 }
 

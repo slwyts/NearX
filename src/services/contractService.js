@@ -1,5 +1,5 @@
-export const CONTRACT_ADDRESS = '0x03adaeA4892fBC9B92d719d9B5F327ec12D3C4E2';
-export const USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955';
+export const CONTRACT_ADDRESS = '0x6D231017547553f7489b3750A30Ba882654f0A9b';
+export const USDT_ADDRESS = '0x55d398326f99059fF775485246999027B3197955'; 
 
 export const CONTRACT_ABI = [
 	{
@@ -804,6 +804,24 @@ export const CONTRACT_ABI = [
 				"name": "",
 				"type": "uint256"
 			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			}
+		],
+		"name": "previewClaimable",
+		"outputs": [
+			{ "internalType": "uint256", "name": "claimableUSDT", "type": "uint256" },
+			{ "internalType": "uint256", "name": "daysPassed", "type": "uint256" },
+			{ "internalType": "uint256", "name": "staticToAdd", "type": "uint256" },
+			{ "internalType": "uint256", "name": "dynamicToAdd", "type": "uint256" }
 		],
 		"stateMutability": "view",
 		"type": "function"
