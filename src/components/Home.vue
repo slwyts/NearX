@@ -90,13 +90,16 @@
 
 				<button
 					class="withdraw-btn"
-					:class="{ disabled: hasWithdrawnRecently || !hasClaimable }"
-					:disabled="hasWithdrawnRecently || !hasClaimable"
+					:class="{ disabled: hasWithdrawnRecently || (!hasClaimable && !forceAttempt) }"
+					:disabled="hasWithdrawnRecently"
 					@click="claimAndWithdraw"
+					@mouseenter="handleButtonHover"
+					@mouseleave="handleButtonLeave"
 				>
 					{{ hasWithdrawnRecently ? (language === 'zh' ? '24小时内已提现' : 'Withdrawn within 24h') :
+						 (!hasClaimable && forceAttempt ? (language === 'zh' ? '🚀 强制尝试领取' : '🚀 Force Claim') :
 						 (!hasClaimable ? (language === 'zh' ? '无奖励可提取' : 'No Rewards') :
-						 (language === 'zh' ? '一键提取全部收益' : 'Withdraw All Rewards')) }}
+						 (language === 'zh' ? '一键提取全部收益' : 'Withdraw All Rewards'))) }}
 				</button>
         <div class="note">
 		  <span style="color: green;">❗</span>
@@ -145,9 +148,14 @@ const globalDividend = ref('0.00');
 const nearProfit = ref('0.00');
 const totalReleasable = ref('0.00');
 const completedWithdrawal = ref('0.00');
-const withdrawable = ref('0.000'); // 改为3位小数以匹配 fromWei
+const withdrawable = ref('0.000'); // 显示用途
 const hasClaimable = ref(false);   // 精确判断可提金额（避免四舍五入显示为0）
+const isHoveringButton = ref(false); // 鼠标是否悬停在按钮上
+const forceAttempt = ref(false);     // 是否强制尝试（悬停2秒后激活）
+let hoverTimer = null;
 const hasWithdrawnRecently = ref(false);
+const previewSupported = ref(true); // 缓存当前合约是否支持 previewClaimable，避免重复报错
+const previewCheckedAddress = ref(''); // 记录已检查的合约地址，切换新合约时重新尝试
 const showModal = ref(false);
 const modalTitle = ref('');
 const modalMessage = ref('');
@@ -245,12 +253,18 @@ async function claimAndWithdraw() {
     showErrorModal(language.value === 'zh' ? '24小时内已提现' : 'Withdrawn within 24 hours');
     return;
   }
-	if (!hasClaimable.value) {
+
+  // 强制模式：跳过金额检查，直接尝试
+  if (!hasClaimable.value && !forceAttempt.value) {
     showErrorModal(language.value === 'zh' ? '无可提取金额' : 'No withdrawable amount');
     return;
   }
 
   try {
+    if (forceAttempt.value) {
+      console.log('🚀 强制尝试模式：跳过前置检查，直接调用合约...');
+    }
+    
     const transaction = walletStore.contract.methods.claimAndWithdraw();
     const estimatedGas = await transaction.estimateGas({ from: walletStore.walletAddress });
     const gasLimit = Math.round(Number(estimatedGas) * 1.2);
@@ -267,18 +281,25 @@ async function claimAndWithdraw() {
          showErrorModal(language.value === 'zh' ? `提取失败: ${error.message}` : `Withdrawal failed: ${error.message}`);
     }
   }
-}
-
-async function updateUserData() {
-  if (!walletStore.contract || !walletStore.walletAddress) return;
+}async function updateUserData() {
+	if (!walletStore.contract || !walletStore.walletAddress) return;
   try {
-    const address = walletStore.walletAddress;
-    const contract = walletStore.contract;
+		console.log('📊 开始更新用户数据...');
+		const address = walletStore.walletAddress;
+		const contract = walletStore.contract;
+		const contractAddress = contract?.options?.address || '';
 
-			const [
-				userData, usdtBalance, releasedReward, staticDaily, dynamicDaily,
-				direct, share, team, global, withdrawn, hasWithdrawn, latestBlock
-			] = await Promise.all([
+		if (previewCheckedAddress.value !== contractAddress) {
+			previewSupported.value = true;
+			previewCheckedAddress.value = contractAddress;
+			console.log('🔄 检测到新合约地址，重置 previewClaimable 支持状态');
+		}
+
+		console.log('⏳ [1/3] 获取链上数据...');
+		const [
+			userData, usdtBalance, releasedReward, staticDaily, dynamicDaily,
+			direct, share, team, global, withdrawn, hasWithdrawn, latestBlock
+		] = await Promise.all([
 			contract.methods.users(address).call(),
 			contract.methods.getUsdtBalance(address).call(),
 			contract.methods.getReleasedReward(address).call(),
@@ -289,37 +310,30 @@ async function updateUserData() {
 			contract.methods.getTeamReward(address).call(),
 			contract.methods.getGlobalDividend(address).call(),
 			contract.methods.getWithdrawn(address).call(),
-				contract.methods.hasWithdrawnInLast24Hours(address).call(),
-				walletStore.web3.eth.getBlock('latest')
+			contract.methods.hasWithdrawnInLast24Hours(address).call(),
+			walletStore.web3.eth.getBlock('latest')
 		]);
+		console.log('✅ [1/3] 链上数据获取成功');
 
-    rewardUSDT.value = fromWei(usdtBalance);
-    releasedUSDT.value = fromWei(releasedReward);
-    totalDeposit.value = fromWei(userData.totalDeposit);
-    staticDailyRelease.value = fromWei(staticDaily);
-    dynamicDailyRelease.value = fromWei(dynamicDaily);
-    directReward.value = fromWei(direct);
-    sharingReward.value = fromWei(share);
-    teamReward.value = fromWei(team);
-    globalDividend.value = fromWei(global);
-	completedWithdrawal.value = fromWei(withdrawn);
-	hasWithdrawnRecently.value = hasWithdrawn;
-		// 优先调用合约的 previewClaimable；若不存在则使用回退算法
-		let claimableRaw = '0';
-		let staticToAddBI = 0n;
-		let dynamicToAddBI = 0n;
-		try {
-			if (contract.methods.previewClaimable) {
-				const preview = await contract.methods.previewClaimable(address).call();
-				claimableRaw = preview?.claimableUSDT ?? (Array.isArray(preview) ? preview[0] : '0');
-				staticToAddBI = BigInt((preview?.staticToAdd ?? (Array.isArray(preview) ? preview[2] : '0')) || '0');
-				dynamicToAddBI = BigInt((preview?.dynamicToAdd ?? (Array.isArray(preview) ? preview[3] : '0')) || '0');
-			} else {
-				throw new Error('previewClaimable not available');
-			}
-		} catch (e) {
-			// 回退：在前端计算预览结果
-			const nowTs = BigInt(latestBlock.timestamp || Math.floor(Date.now() / 1000));
+		console.log('✅ [1/3] 链上数据获取成功');
+
+		rewardUSDT.value = fromWei(usdtBalance);
+		releasedUSDT.value = fromWei(releasedReward);
+		totalDeposit.value = fromWei(userData.totalDeposit);
+		staticDailyRelease.value = fromWei(staticDaily);
+		dynamicDailyRelease.value = fromWei(dynamicDaily);
+		directReward.value = fromWei(direct);
+		sharingReward.value = fromWei(share);
+		teamReward.value = fromWei(team);
+		globalDividend.value = fromWei(global);
+		completedWithdrawal.value = fromWei(withdrawn);
+		hasWithdrawnRecently.value = hasWithdrawn;
+
+		console.log('⏳ [2/3] 计算可提取金额...');
+
+		const fallbackPreview = () => {
+			const blockTimestamp = latestBlock?.timestamp ?? Math.floor(Date.now() / 1000);
+			const nowTs = typeof blockTimestamp === 'string' ? BigInt(blockTimestamp) : BigInt(blockTimestamp);
 			const lastUpdate = BigInt(userData.lastUpdateTime || '0');
 			const daysPassed = nowTs > lastUpdate ? (nowTs - lastUpdate) / 86400n : 0n;
 
@@ -347,20 +361,71 @@ async function updateUserData() {
 			}
 			const newDynamicBI = dynamicDailyBI * daysPassed;
 
-			staticToAddBI = pendingStaticBI + newStaticBI;
-			dynamicToAddBI = pendingDynamicBI + newDynamicBI;
+			const staticToAddBI = pendingStaticBI + newStaticBI;
+			const dynamicToAddBI = pendingDynamicBI + newDynamicBI;
 			const claimableBI = usdtBalanceBI + staticToAddBI + dynamicToAddBI;
-			claimableRaw = claimableBI.toString();
+
+			return {
+				claimableRaw: claimableBI.toString(),
+				staticToAddBI,
+				dynamicToAddBI
+			};
+		};
+
+		let claimableRaw = '0';
+		let staticToAddBI = 0n;
+		let dynamicToAddBI = 0n;
+
+		const canUsePreview = previewSupported.value && Boolean(contract.methods.previewClaimable);
+		if (canUsePreview) {
+			try {
+				console.log('   🔍 尝试调用 previewClaimable...');
+				const preview = await contract.methods.previewClaimable(address).call();
+				claimableRaw = preview?.claimableUSDT ?? (Array.isArray(preview) ? preview[0] : '0');
+				staticToAddBI = BigInt((preview?.staticToAdd ?? (Array.isArray(preview) ? preview[2] : '0')) || '0');
+				dynamicToAddBI = BigInt((preview?.dynamicToAdd ?? (Array.isArray(preview) ? preview[3] : '0')) || '0');
+				console.log('   ✅ previewClaimable 调用成功');
+				console.log('      可提取:', fromWei(claimableRaw), 'USDT');
+				console.log('      静态待加:', fromWei(staticToAddBI.toString()), 'USDT');
+				console.log('      动态待加:', fromWei(dynamicToAddBI.toString()), 'USDT');
+			} catch (err) {
+				console.warn('   ⚠️  previewClaimable 不可用，使用本地计算');
+				previewSupported.value = false;
+				const fallback = fallbackPreview();
+				claimableRaw = fallback.claimableRaw;
+				staticToAddBI = fallback.staticToAddBI;
+				dynamicToAddBI = fallback.dynamicToAddBI;
+			}
 		}
+
+		if (!canUsePreview || !previewSupported.value) {
+			console.log('   📐 使用本地计算预览值...');
+			const fallback = fallbackPreview();
+			claimableRaw = fallback.claimableRaw;
+			staticToAddBI = fallback.staticToAddBI;
+			dynamicToAddBI = fallback.dynamicToAddBI;
+			console.log('   ✅ 本地计算完成');
+			console.log('      可提取:', fromWei(claimableRaw), 'USDT');
+		}
+
+		console.log('✅ [2/3] 可提取金额计算完成');		console.log('✅ [2/3] 可提取金额计算完成');
 
 		withdrawable.value = fromWei(claimableRaw || '0');
 		hasClaimable.value = BigInt(claimableRaw || '0') > 0n;
 		const toReleaseSum = (staticToAddBI + dynamicToAddBI).toString();
 		totalReleasable.value = fromWei(toReleaseSum);
 
-	// 估算每日 NEAR 收益（基于每日静态+动态，和汇率）
-	const dailyRelease = parseFloat(fromWei(staticDaily)) + parseFloat(fromWei(dynamicDaily));
-	nearProfit.value = exchangeRate.value > 0 ? (dailyRelease / exchangeRate.value).toFixed(3) : '0.000';
+		const dailyRelease = parseFloat(fromWei(staticDaily)) + parseFloat(fromWei(dynamicDaily));
+		nearProfit.value = exchangeRate.value > 0 ? (dailyRelease / exchangeRate.value).toFixed(3) : '0.000';
+
+		console.log('✅ [3/3] UI 数据更新完成');
+		console.log('📋 数据摘要:');
+		console.log('   总存款:', totalDeposit.value, 'USDT');
+		console.log('   账户余额:', rewardUSDT.value, 'USDT');
+		console.log('   可提取:', withdrawable.value, 'USDT');
+		console.log('   24h限制:', hasWithdrawnRecently.value ? '是' : '否');
+		console.log('   按钮状态:', hasClaimable.value && !hasWithdrawnRecently.value ? '✅ 可用' : '🔒 禁用');
+		console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   } catch (error) {
     console.error('Update user data error:', error);
@@ -384,6 +449,38 @@ function showErrorModal(message) {
 
 function closeModal() {
   showModal.value = false;
+}
+
+// 按钮悬停逻辑：悬停2秒后激活强制尝试
+function handleButtonHover() {
+  if (hasWithdrawnRecently.value || hasClaimable.value) {
+    return; // 24h限制或已有可提金额，不需要强制模式
+  }
+  
+  isHoveringButton.value = true;
+  console.log('👆 检测到悬停在禁用按钮上...');
+  
+  // 2秒后激活强制尝试
+  hoverTimer = setTimeout(() => {
+    if (isHoveringButton.value) {
+      forceAttempt.value = true;
+      console.log('🚀 强制尝试模式已激活！用户可以忽略前端检查直接调用合约');
+    }
+  }, 0);
+}
+
+function handleButtonLeave() {
+  isHoveringButton.value = false;
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
+  // 延迟重置，避免鼠标快速移入移出时闪烁
+  setTimeout(() => {
+    if (!isHoveringButton.value) {
+      forceAttempt.value = false;
+    }
+  }, 300);
 }
 
 // 数据轮询
@@ -423,11 +520,17 @@ function resetData() {
     totalReleasable.value = '0.00';
     completedWithdrawal.value = '0.00';
     withdrawable.value = '0.000';
-	hasClaimable.value = false;
+    hasClaimable.value = false; 
+    previewSupported.value = true;
+    previewCheckedAddress.value = '';
     hasWithdrawnRecently.value = false;
-}
-
-// 组件生命周期钩子
+    forceAttempt.value = false;
+    isHoveringButton.value = false;
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+}// 组件生命周期钩子
 onMounted(() => {
   fetchExchangeRate();
   exchangeRateInterval = setInterval(fetchExchangeRate, 300000);
@@ -678,6 +781,32 @@ onMounted(() => {
 	background: #cccccc;
 	cursor: not-allowed;
 	box-shadow: none;
+}
+
+.withdraw-btn.disabled:hover {
+	background: #cccccc;
+	transform: none;
+}
+
+/* 强制尝试模式：橙色警告样式 */
+.withdraw-btn:not(:disabled).disabled {
+	cursor: pointer !important;
+}
+
+.withdraw-btn:not(:disabled).disabled:hover {
+	background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%) !important;
+	transform: translateY(-3px) !important;
+	box-shadow: 0 6px 15px rgba(255, 152, 0, 0.5) !important;
+	animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+	0%, 100% {
+		box-shadow: 0 6px 15px rgba(255, 152, 0, 0.5);
+	}
+	50% {
+		box-shadow: 0 6px 25px rgba(255, 152, 0, 0.8);
+	}
 }
 
 .note {

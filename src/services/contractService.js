@@ -816,24 +816,6 @@ export const CONTRACT_ABI = [
 				"type": "address"
 			}
 		],
-		"name": "previewClaimable",
-		"outputs": [
-			{ "internalType": "uint256", "name": "claimableUSDT", "type": "uint256" },
-			{ "internalType": "uint256", "name": "daysPassed", "type": "uint256" },
-			{ "internalType": "uint256", "name": "staticToAdd", "type": "uint256" },
-			{ "internalType": "uint256", "name": "dynamicToAdd", "type": "uint256" }
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			}
-		],
 		"name": "hasWithdrawnInLast24Hours",
 		"outputs": [
 			{
@@ -904,6 +886,40 @@ export const CONTRACT_ABI = [
 				"internalType": "address",
 				"name": "",
 				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			}
+		],
+		"name": "previewClaimable",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "claimableUSDT",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "daysPassed",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "staticToAdd",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "dynamicToAdd",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",

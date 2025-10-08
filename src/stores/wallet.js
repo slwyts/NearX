@@ -63,6 +63,8 @@ export const useWalletStore = defineStore('wallet', () => {
     }
 
     try {
+      console.log('🔄 [1/6] 开始连接钱包...');
+      
       // 切换为钱包的 provider 以便进行交易
       web3.value = new Web3(window.ethereum);
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
@@ -70,30 +72,36 @@ export const useWalletStore = defineStore('wallet', () => {
         throw new Error('No accounts found. Please unlock your wallet.');
       }
       walletAddress.value = accounts[0];
-      isConnected.value = true;
+      console.log('✅ [2/6] 钱包地址获取成功:', walletAddress.value);
       
       await switchToBSCMainnet();
+      console.log('✅ [3/6] 网络切换完成 (BSC Mainnet)');
 
       // 使用钱包的 provider 重新初始化合约实例
       contract.value = new web3.value.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
       usdtContract.value = new web3.value.eth.Contract(USDT_ABI, USDT_ADDRESS);
+      console.log('✅ [4/6] 合约实例创建完成');
+      console.log('   📍 NearX 合约:', CONTRACT_ADDRESS);
 
       usdtDecimals.value = Number(await usdtContract.value.methods.decimals().call());
+      console.log('✅ [5/6] USDT 精度:', usdtDecimals.value);
 
-      console.log('Wallet connected:', walletAddress.value);
-      console.log('USDT Decimals:', usdtDecimals.value);
+      // 确保合约实例完全初始化后再设置 isConnected
+      await new Promise(resolve => setTimeout(resolve, 100));
+      isConnected.value = true;
+      console.log('✅ [6/6] 钱包连接完成，即将触发数据更新...');
 
       window.ethereum.on('accountsChanged', (newAccounts) => {
         if (newAccounts.length > 0) {
           walletAddress.value = newAccounts[0];
-          console.log('Account switched to:', newAccounts[0]);
+          console.log('🔄 账户切换:', newAccounts[0]);
         } else {
           disconnect();
         }
       });
 
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
+      console.error('❌ 钱包连接失败:', error);
       alert(isChinese.value ? `钱包连接失败: ${error.message}` : `Failed to connect wallet: ${error.message}`);
       disconnect();
     }
