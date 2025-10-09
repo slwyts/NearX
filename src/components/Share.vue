@@ -86,14 +86,24 @@ async function bindReferral() {
 
     error.value = '';
 
-    const tx = await walletStore.contract.methods.bindReferrer(referral).send({
-      from: walletStore.walletAddress,
-      gas: 200000,
-      gasPrice: walletStore.web3.utils.toWei('10', 'gwei'),
-    });
+    // 动态估算 gas
+    const transaction = walletStore.contract.methods.bindReferrer(referral);
+    try {
+      const estimatedGas = await transaction.estimateGas({ from: walletStore.walletAddress });
+      const gasLimit = Math.round(Number(estimatedGas) * 1.5); // 增加50%的缓冲
+      console.log(`Estimated Gas: ${estimatedGas}, Gas Limit: ${gasLimit}`);
 
-    console.log('Referral bound successfully:', tx);
-    alert(isChinese.value ? '推荐人地址绑定成功！' : 'Referral address bound successfully!');
+      const tx = await transaction.send({
+        from: walletStore.walletAddress,
+        gas: gasLimit,
+      });
+
+      console.log('Referral bound successfully:', tx);
+      alert(isChinese.value ? '推荐人地址绑定成功！' : 'Referral address bound successfully!');
+    } catch (estimateError) {
+      console.error('Gas estimation or transaction failed:', estimateError);
+      throw estimateError;
+    }
 
   } catch (err) {
     console.error('Bind referral error:', err);

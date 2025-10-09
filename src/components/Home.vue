@@ -266,10 +266,44 @@ async function claimAndWithdraw() {
     }
     
     const transaction = walletStore.contract.methods.claimAndWithdraw();
-    const estimatedGas = await transaction.estimateGas({ from: walletStore.walletAddress });
-    const gasLimit = Math.round(Number(estimatedGas) * 1.2);
-    console.log(`Estimated Gas for claimAndWithdraw: ${estimatedGas}, Gas Limit with buffer: ${gasLimit}`);
-    await transaction.send({ from: walletStore.walletAddress, gas: gasLimit });
+    
+    // 先尝试估算 Gas 来获取具体的合约错误
+    try {
+      const estimatedGas = await transaction.estimateGas({ from: walletStore.walletAddress });
+      const gasLimit = Math.round(Number(estimatedGas) * 1.2);
+      console.log(`Estimated Gas: ${estimatedGas}, Gas Limit: ${gasLimit}`);
+      await transaction.send({ from: walletStore.walletAddress, gas: gasLimit });
+    } catch (estimateError) {
+      // Gas 估算失败，说明合约会 revert，提取具体错误信息
+      console.error('Gas 估算失败，合约将会 revert:', estimateError);
+      
+      // 尝试解析合约返回的错误消息
+      let errorMessage = estimateError.message || '未知错误';
+      
+      // 常见的合约 revert 原因
+      if (errorMessage.includes('User is restricted')) {
+        throw new Error(language.value === 'zh' ? '账户已被限制' : 'User is restricted');
+      } else if (errorMessage.includes('No deposit')) {
+        throw new Error(language.value === 'zh' ? '您还没有存款记录' : 'No deposit found');
+      } else if (errorMessage.includes('Can only withdraw once every 24 hours')) {
+        throw new Error(language.value === 'zh' ? '24小时内只能提现一次' : 'Can only withdraw once every 24 hours');
+      } else if (errorMessage.includes('No balance to withdraw')) {
+        throw new Error(language.value === 'zh' ? '账户余额为0，没有可提取的奖励' : 'No balance to withdraw');
+      } else if (errorMessage.includes('You have been blacklisted')) {
+        throw new Error(language.value === 'zh' ? '您已被加入黑名单' : 'You have been blacklisted from withdrawing');
+      } else if (errorMessage.includes('Invalid price from oracle')) {
+        throw new Error(language.value === 'zh' ? '预言机价格无效，请稍后重试' : 'Invalid price from oracle');
+      } else if (errorMessage.includes('NEAR transfer failed')) {
+        throw new Error(language.value === 'zh' ? 'NEAR代币转账失败，合约余额可能不足' : 'NEAR transfer failed, contract may be out of tokens');
+      } else {
+        // 未能识别的错误，显示原始信息
+        console.error('未识别的合约错误:', estimateError);
+        throw new Error(language.value === 'zh' 
+          ? `合约执行失败: ${errorMessage}` 
+          : `Contract execution failed: ${errorMessage}`);
+      }
+    }
+    
     await updateUserData();
     showSuccessModal(language.value === 'zh' ? '提取成功，NEAR已转入您的钱包' : 'Withdrawal successful, NEAR transferred to your wallet');
 
@@ -298,7 +332,8 @@ async function claimAndWithdraw() {
 		console.log('⏳ [1/3] 获取链上数据...');
 		const [
 			userData, usdtBalance, releasedReward, staticDaily, dynamicDaily,
-			direct, share, team, global, withdrawn, hasWithdrawn, latestBlock
+			direct, share, team, global, withdrawn, hasWithdrawn, latestBlock,
+			walletUsdtBalance
 		] = await Promise.all([
 			contract.methods.users(address).call(),
 			contract.methods.getUsdtBalance(address).call(),
@@ -311,13 +346,14 @@ async function claimAndWithdraw() {
 			contract.methods.getGlobalDividend(address).call(),
 			contract.methods.getWithdrawn(address).call(),
 			contract.methods.hasWithdrawnInLast24Hours(address).call(),
-			walletStore.web3.eth.getBlock('latest')
+			walletStore.web3.eth.getBlock('latest'),
+			walletStore.usdtContract.methods.balanceOf(address).call()
 		]);
 		console.log('✅ [1/3] 链上数据获取成功');
 
 		console.log('✅ [1/3] 链上数据获取成功');
 
-		rewardUSDT.value = fromWei(usdtBalance);
+		rewardUSDT.value = fromWei(walletUsdtBalance);
 		releasedUSDT.value = fromWei(releasedReward);
 		totalDeposit.value = fromWei(userData.totalDeposit);
 		staticDailyRelease.value = fromWei(staticDaily);
